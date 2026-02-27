@@ -55,18 +55,6 @@
     }
 
 
-    // ── NBA team official X (Twitter) handles ────────────────────────────────────
-    const TEAM_TWITTER = {
-      ATL:"ATLHawks", BOS:"celtics", BKN:"BrooklynNets", CHA:"hornets",
-      CHI:"chicagobulls", CLE:"cavs", DAL:"dallasmavs", DEN:"nuggets",
-      DET:"detroitpistons", GSW:"warriors", HOU:"houstonrockets", IND:"IndianaPacers",
-      LAC:"LAClippers", LAL:"Lakers", MEM:"memgrizz", MIA:"MiamiHEAT",
-      MIL:"Bucks", MIN:"Timberwolves", NOP:"PelicansNBA", NYK:"nyknicks",
-      OKC:"okcthunder", ORL:"OrlandoMagic", PHI:"sixers", PHX:"Suns",
-      POR:"trailblazers", SAC:"SacramentoKings", SAS:"spurs", TOR:"Raptors",
-      UTA:"utahjazz", WAS:"WashWizards",
-    };
-
     // ── All 30 teams ─────────────────────────────────────────────────────────────
     const ALL_TEAMS = [
       {abbreviation:"ATL",city:"Atlanta",      name:"Hawks"},       {abbreviation:"BOS",city:"Boston",       name:"Celtics"},
@@ -108,6 +96,15 @@
       return { data: all };
     }
 
+    // ── Team ID → team object (populated once, used to look up opponents) ────────
+    // /stats only returns home_team_id/visitor_team_id numbers, not full objects.
+    const teamsById = {};
+    async function ensureTeamsById() {
+      if (Object.keys(teamsById).length > 0) return;
+      const res = await fetchAll("/teams");
+      (res.data ?? []).forEach(t => { if (t.id) teamsById[t.id] = t; });
+    }
+
     function parseMin(m) {
       if (!m) return 0;
       const s = String(m);
@@ -117,7 +114,7 @@
 
     async function fetchPlayerStats(playerId) {
       const res = await fetchAll(`/stats?player_ids[]=${playerId}&seasons[]=${SEASON}`);
-      if (res._err) return { avg: null, lastGames: [] };
+      if (res._err) return { avg: null, lastGames: [], top5: [] };
       const all = res.data ?? [];
       // Only count games where player actually played (has minutes)
       const played = all.filter(g => parseMin(g.min) > 0);
@@ -126,7 +123,12 @@
         .filter(g => g.game?.date)
         .sort((a, b) => new Date(b.game.date) - new Date(a.game.date))
         .slice(0, 5);
-      if (!played.length) return { avg: null, lastGames };
+      // Top 5 performances this season by combined PTS+REB+AST
+      const top5 = [...played]
+        .filter(g => g.game?.date)
+        .sort((a, b) => ((b.pts??0)+(b.reb??0)+(b.ast??0)) - ((a.pts??0)+(a.reb??0)+(a.ast??0)))
+        .slice(0, 5);
+      if (!played.length) return { avg: null, lastGames, top5 };
       const n = played.length;
       const sum = key => played.reduce((acc, g) => acc + (parseFloat(g[key]) || 0), 0);
       const fgm = sum("fgm"), fga = sum("fga");
@@ -134,6 +136,7 @@
       const ftm = sum("ftm"), fta = sum("fta");
       return {
         lastGames,
+        top5,
         avg: {
           games_played: n,
           pts: +(sum("pts") / n).toFixed(1),
@@ -149,37 +152,22 @@
       };
     }
 
-    // ── Kalshi odds (public read, no auth needed for market data) ────────────────
-    async function fetchKalshiOdds(firstName, lastName) {
-      try {
-        const name = `${firstName} ${lastName}`;
-        const r = await fetch(
-          `https://trading-api.kalshi.com/trade-api/v2/markets?status=open&limit=50&search=${encodeURIComponent(name)}`,
-          { headers: { Accept: "application/json" } }
-        );
-        if (!r.ok) return null;
-        const data = await r.json();
-        const markets = Array.isArray(data.markets) ? data.markets : [];
-        const AWARDS = ["mvp","most improved","defensive player","dpoy","rookie","all-nba","finals mvp","scoring","6th man","championship","mip"];
-        return markets
-          .filter(m => {
-            const title = (m.title ?? m.subtitle ?? "").toLowerCase();
-            return AWARDS.some(a => title.includes(a));
-          })
-          .map(m => {
-            // Kalshi yes_bid is in cents (0–99); mid-price = (yes_bid + yes_ask) / 2
-            const bid = m.yes_bid ?? null, ask = m.yes_ask ?? null;
-            const prob = bid != null ? (ask != null ? (bid + ask) / 2 / 100 : bid / 100) : null;
-            const ticker = m.event_ticker ?? m.ticker ?? "";
-            return {
-              question: m.title ?? m.subtitle ?? ticker,
-              prob,
-              url: `https://kalshi.com/markets/${ticker}`,
-            };
-          })
-          .filter(m => m.prob !== null && m.prob > 0.005)
-          .sort((a, b) => b.prob - a.prob);
-      } catch { return null; }
+    // ── Standings ────────────────────────────────────────────────────────────────
+    // Returns a map of { [teamAbbr]: { wins, losses } }
+    async function fetchStandings() {
+      const res = await apiFetch(`/standings?season=${SEASON}`);
+      if (res._err) { console.warn("Standings fetch error:", res._err); return {}; }
+      const map = {};
+      (res.data ?? []).forEach(s => {
+        const abbr = s.team?.abbreviation;
+        if (!abbr) return;
+        // BallDontLie v1 uses wins/losses at the top level; some fields may differ
+        const wins   = s.wins   ?? s.conference_wins   ?? 0;
+        const losses = s.losses ?? s.conference_losses ?? 0;
+        map[abbr] = { wins, losses };
+      });
+      if (!Object.keys(map).length) console.warn("Standings returned empty — check season param or API tier");
+      return map;
     }
 
     // ── Date helpers ─────────────────────────────────────────────────────────────
@@ -188,6 +176,14 @@
       return d.toISOString().split("T")[0];
     }
     function fmtDate(s) { return new Date(s + "T12:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric" }); }
+    // Parse BallDontLie status strings like "7:30 pm ET" into { time, ampm, tz }
+    function fmtGameTime(status) {
+      if (!status) return null;
+      const m = status.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+      if (!m) return null;
+      const tz = (status.match(/(ET|PT|CT|MT)/i) ?? [])[0] ?? "ET";
+      return { time: `${m[1]}:${m[2]}`, ampm: m[3].toUpperCase(), tz };
+    }
     function dayLabel(s) {
       if (s === dateStr(0)) return "Today";
       if (s === dateStr(1)) return "Yesterday";
@@ -223,7 +219,8 @@
     }
 
     // ── PlayerPhoto — TheSportsDB, lazy-fetched, globally cached ─────────────────
-    function PlayerPhoto({ player, size = 40 }) {
+    // fetchDelay: ms to wait before starting fetch (use to prioritise POTG > TopPerformers > Favorites)
+    function PlayerPhoto({ player, size = 40, fetchDelay = 0 }) {
       const firstName = player?.first_name ?? "";
       const lastName  = player?.last_name  ?? "";
       const cacheKey  = firstName && lastName ? `${firstName} ${lastName}` : null;
@@ -237,8 +234,12 @@
       useEffect(() => {
         if (!cacheKey) return;
         if (cacheKey in sportsDbCache) { setSrc(sportsDbCache[cacheKey]); return; }
-        // Fetch once per unique name; result stored in module-level cache
-        fetchSportsDbPhoto(firstName, lastName).then(url => setSrc(url));
+        // Fetch once per unique name; result stored in module-level cache.
+        // fetchDelay lets POTG photos (0ms) load before TopPerformers (200ms) and Favorites (1000ms).
+        const id = setTimeout(() =>
+          fetchSportsDbPhoto(firstName, lastName).then(url => setSrc(url)),
+        fetchDelay);
+        return () => clearTimeout(id);
       }, [cacheKey]);
 
       const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`;
@@ -270,85 +271,6 @@
       );
       return <img src={logoUrl(abbr)} alt={abbr ?? ""} width={size} height={size}
         style={{ objectFit:"contain" }} onError={() => setFailed(true)} />;
-    }
-
-    // ── TwitterFeed ──────────────────────────────────────────────────────────────
-    // X/Twitter's embed widget often can't render from local/sandboxed files.
-    // We try the widget; if it fails or times out in 4s we show a fallback link.
-    function TwitterFeed({ handle }) {
-      const containerRef = useRef(null);
-      const [widgetState, setWidgetState] = useState("loading"); // loading | ok | failed
-
-      useEffect(() => {
-        if (!containerRef.current || !handle) return;
-        containerRef.current.innerHTML = "";
-        setWidgetState("loading");
-
-        // Fallback timer — if nothing renders in 4 seconds, show the link card
-        const fallbackTimer = setTimeout(() => setWidgetState("failed"), 4000);
-
-        const createWidget = () => {
-          if (!window.twttr?.widgets || !containerRef.current) {
-            clearTimeout(fallbackTimer); setWidgetState("failed"); return;
-          }
-          window.twttr.widgets.createTimeline(
-            { sourceType: "profile", screenName: handle },
-            containerRef.current,
-            { tweetLimit: 5, chrome: "noheader nofooter noborders transparent", theme: "light", width: "100%" }
-          ).then(() => { clearTimeout(fallbackTimer); setWidgetState("ok"); })
-           .catch(() => { clearTimeout(fallbackTimer); setWidgetState("failed"); });
-        };
-
-        if (!window.twttr) {
-          const existing = document.getElementById("twitter-wjs");
-          if (!existing) {
-            const s = document.createElement("script");
-            s.id = "twitter-wjs"; s.src = "https://platform.twitter.com/widgets.js"; s.async = true;
-            s.onload = createWidget;
-            s.onerror = () => { clearTimeout(fallbackTimer); setWidgetState("failed"); };
-            document.head.appendChild(s);
-          } else {
-            createWidget();
-          }
-        } else {
-          createWidget();
-        }
-        return () => clearTimeout(fallbackTimer);
-      }, [handle]);
-
-      if (!handle) return null;
-      return (
-        <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
-          boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-            <span style={{ fontSize:18 }}>𝕏</span>
-            <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a" }}>Latest Posts</h3>
-            <a href={`https://x.com/${handle}`} target="_blank" rel="noreferrer"
-              style={{ marginLeft:"auto", fontSize:11, color:"#60a5fa", textDecoration:"none", fontWeight:600 }}>
-              @{handle} ↗
-            </a>
-          </div>
-
-          {/* Fallback card — shown when widget can't render (X restriction) */}
-          {widgetState === "failed" ? (
-            <div style={{ background:"#f8fbff", borderRadius:14, padding:"20px", textAlign:"center",
-              border:"1px dashed #dbeafe" }}>
-              <p style={{ color:"#93c5fd", fontSize:12, marginBottom:14 }}>
-                X doesn't allow embedded posts here.
-              </p>
-              <a href={`https://x.com/${handle}`} target="_blank" rel="noreferrer"
-                style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 20px",
-                  background:"#000", color:"white", borderRadius:20, fontSize:12, fontWeight:700, textDecoration:"none" }}>
-                <span style={{ fontSize:14 }}>𝕏</span> View @{handle} on X
-              </a>
-            </div>
-          ) : (
-            <div ref={containerRef} style={{ minHeight:80 }}>
-              {widgetState === "loading" && <p style={{ color:"#93c5fd", fontSize:13 }}>Loading posts…</p>}
-            </div>
-          )}
-        </div>
-      );
     }
 
     // ── YouTube — GAMETIME HIGHLIGHTS search → direct link ───────────────────────
@@ -448,10 +370,7 @@
                   return (
                     <tr key={pl.id ?? i} style={{ background:i%2===0?"white":"#f8fbff", borderBottom:"1px solid #f0f7ff" }}>
                       <td style={{ padding:"6px 12px", whiteSpace:"nowrap" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          <PlayerPhoto player={pl} size={28} />
-                          <span style={{ fontWeight:500, color:"#1e3a8a" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
-                        </div>
+                        <span style={{ fontWeight:500, color:"#1e3a8a" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
                       </td>
                       <td style={{ padding:"7px 6px", textAlign:"center", color:"#93c5fd" }}>{p.min??"—"}</td>
                       <td style={{ padding:"7px 6px", textAlign:"center", fontWeight:800, color:"#1e3a8a" }}>{p.pts??"—"}</td>
@@ -520,10 +439,15 @@
     }
 
     // ── GameCard ─────────────────────────────────────────────────────────────────
-    function GameCard({ game, delay, spoilerMode, date }) {
+    function GameCard({ game, delay, spoilerMode, date, standings }) {
       const [modal, setModal] = useState(false);
-      const homeWon    = (game.home.score ?? 0) > (game.visitor.score ?? 0);
-      const visitorWon = (game.visitor.score ?? 0) > (game.home.score ?? 0);
+      const isFinal    = game.status === "Final";
+      const isUpcoming = game.home.score == null && game.visitor.score == null && !isFinal;
+      const isLive     = !isFinal && !isUpcoming;
+      const gametime   = isUpcoming ? fmtGameTime(game.status) : null;
+
+      const homeWon    = isFinal && (game.home.score ?? 0) > (game.visitor.score ?? 0);
+      const visitorWon = isFinal && (game.visitor.score ?? 0) > (game.home.score ?? 0);
       const winningTeam = homeWon ? game.home : visitorWon ? game.visitor : null;
       const star = winningTeam ? byPts(winningTeam.players ?? [])[0] ?? null : null;
       const allPlayers = [...(game.home.players??[]), ...(game.visitor.players??[])];
@@ -532,46 +456,108 @@
       return (
         <>
           <div className="card-anim" style={{ background:"white", borderRadius:20,
-            border:"1px solid #dbeafe", boxShadow:"0 2px 18px rgba(59,130,246,0.08)",
+            border: isUpcoming ? "1px solid #c7d2fe" : "1px solid #dbeafe",
+            boxShadow: isUpcoming
+              ? "0 4px 24px rgba(99,102,241,0.13)"
+              : "0 2px 18px rgba(59,130,246,0.08)",
             overflow:"hidden", display:"flex", flexDirection:"column",
             animationDelay:`${delay*60}ms` }}>
 
-            {/* Score */}
-            <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:"20px 14px 14px" }}>
-              <div style={{ display:"flex", alignItems:"center" }}>
-                <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6,
-                  opacity:!spoilerMode&&homeWon?0.35:1, transition:"opacity 0.3s" }}>
-                  <TeamLogo abbr={game.visitor.abbreviation} size={52} />
-                  <span style={{ fontSize:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{game.visitor.abbreviation}</span>
-                  <span style={{ fontSize:40, fontWeight:900, lineHeight:1,
-                    filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
-                    color:spoilerMode?"#93c5fd":homeWon?"#93c5fd":"#1e3a8a" }}>
-                    {game.visitor.score??"—"}
-                  </span>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"0 8px", gap:8 }}>
-                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em", padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap",
-                    background:spoilerMode?"#f0f6ff":game.status==="Final"?"#dbeafe":"#fef3c7",
-                    color:spoilerMode?"#93c5fd":game.status==="Final"?"#1d4ed8":"#92400e" }}>
-                    {spoilerMode?"VS":game.status==="Final"?"FINAL":(game.status??"TBD")}
-                  </span>
-                  <span style={{ color:"#bfdbfe", fontSize:22, fontWeight:200 }}>·</span>
-                </div>
-                <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6,
-                  opacity:!spoilerMode&&visitorWon?0.35:1, transition:"opacity 0.3s" }}>
-                  <TeamLogo abbr={game.home.abbreviation} size={52} />
-                  <span style={{ fontSize:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{game.home.abbreviation}</span>
-                  <span style={{ fontSize:40, fontWeight:900, lineHeight:1,
-                    filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
-                    color:spoilerMode?"#93c5fd":homeWon?"#1e3a8a":"#93c5fd" }}>
-                    {game.home.score??"—"}
-                  </span>
+            {/* ── UPCOMING matchup header ── */}
+            {isUpcoming && (
+              <div style={{ background:"linear-gradient(145deg,#1e1b4b 0%,#1e3a8a 60%,#1d4ed8 100%)",
+                padding:"22px 16px 18px", position:"relative", overflow:"hidden" }}>
+                {/* subtle shimmer lines */}
+                <div style={{ position:"absolute", inset:0, opacity:0.06,
+                  backgroundImage:"repeating-linear-gradient(135deg,white 0px,white 1px,transparent 1px,transparent 12px)" }} />
+                <div style={{ display:"flex", alignItems:"center", position:"relative" }}>
+                  {/* Visitor */}
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:7 }}>
+                    <TeamLogo abbr={game.visitor.abbreviation} size={62} />
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:13, fontWeight:900, color:"white", letterSpacing:"0.08em" }}>{game.visitor.abbreviation}</div>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", fontWeight:500, marginTop:1 }}>{game.visitor.city}</div>
+                      {standings?.[game.visitor.abbreviation] && (
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.65)", fontWeight:700, marginTop:2 }}>
+                          {standings[game.visitor.abbreviation].wins}–{standings[game.visitor.abbreviation].losses}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Centre: time */}
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, padding:"0 6px" }}>
+                    <div style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.45)",
+                      letterSpacing:"0.14em", textTransform:"uppercase" }}>vs</div>
+                    {gametime ? (
+                      <div style={{ background:"rgba(255,255,255,0.12)", borderRadius:14,
+                        padding:"8px 14px", textAlign:"center", backdropFilter:"blur(4px)",
+                        border:"1px solid rgba(255,255,255,0.18)" }}>
+                        <div style={{ fontSize:22, fontWeight:900, color:"white", lineHeight:1 }}>{gametime.time}</div>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.65)", fontWeight:700,
+                          letterSpacing:"0.06em", marginTop:2 }}>{gametime.ampm} {gametime.tz}</div>
+                      </div>
+                    ) : (
+                      <div style={{ background:"rgba(255,255,255,0.1)", borderRadius:14, padding:"8px 16px",
+                        fontSize:13, fontWeight:800, color:"rgba(255,255,255,0.7)" }}>TBD</div>
+                    )}
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontWeight:600,
+                      background:"rgba(255,255,255,0.08)", borderRadius:20, padding:"2px 8px" }}>
+                      🏠 {game.home.abbreviation}
+                    </div>
+                  </div>
+                  {/* Home */}
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:7 }}>
+                    <TeamLogo abbr={game.home.abbreviation} size={62} />
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:13, fontWeight:900, color:"white", letterSpacing:"0.08em" }}>{game.home.abbreviation}</div>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", fontWeight:500, marginTop:1 }}>{game.home.city}</div>
+                      {standings?.[game.home.abbreviation] && (
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.65)", fontWeight:700, marginTop:2 }}>
+                          {standings[game.home.abbreviation].wins}–{standings[game.home.abbreviation].losses}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Player of the Game (winning team, with photo) */}
-            {!spoilerMode && star?.player && star.pts != null && (
+            {/* ── FINAL / LIVE score header ── */}
+            {!isUpcoming && (
+              <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:"20px 14px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center" }}>
+                  {[game.visitor, game.home].map((side, si) => {
+                    const rec = standings?.[side.abbreviation];
+                    const won = si===0 ? visitorWon : homeWon;
+                    const faded = !spoilerMode && (si===0 ? homeWon : visitorWon);
+                    return (
+                      <div key={si} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4,
+                        opacity:faded?0.35:1, transition:"opacity 0.3s" }}>
+                        <TeamLogo abbr={side.abbreviation} size={52} />
+                        <span style={{ fontSize:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{side.abbreviation}</span>
+                        {rec && <span style={{ fontSize:10, color:"#93c5fd", fontWeight:600 }}>{rec.wins}–{rec.losses}</span>}
+                        <span style={{ fontSize:40, fontWeight:900, lineHeight:1,
+                          filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
+                          color:spoilerMode?"#93c5fd":won?"#1e3a8a":"#93c5fd" }}>
+                          {side.score??"—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"0 8px", gap:8 }}>
+                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em", padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap",
+                      background: spoilerMode ? "#f0f6ff" : isFinal ? "#dbeafe" : "#dcfce7",
+                      color:       spoilerMode ? "#93c5fd" : isFinal ? "#1d4ed8" : "#15803d" }}>
+                      {spoilerMode ? "VS" : isFinal ? "FINAL" : game.status ?? "LIVE"}
+                    </span>
+                    <span style={{ color:"#bfdbfe", fontSize:22, fontWeight:200 }}>·</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Player of the Game */}
+            {!isUpcoming && !spoilerMode && star?.player && star.pts != null && (
               <div style={{ padding:"10px 14px", background:"#fffbeb",
                 borderTop:"1px solid #fde68a", borderBottom:"1px solid #f0f7ff",
                 display:"flex", alignItems:"center", gap:12 }}>
@@ -594,8 +580,8 @@
               </div>
             )}
 
-            {/* Mini stats */}
-            {!spoilerMode && hasStats && (
+            {/* Mini stats — only for finished games */}
+            {isFinal && !spoilerMode && hasStats && (
               <div style={{ borderTop:"1px solid #f0f7ff" }}>
                 {[game.visitor, game.home].map((side, si) => {
                   const top = (side.players ?? []).slice(0, 4);
@@ -621,10 +607,7 @@
                             return (
                               <tr key={pl.id??i} style={{ background:i%2===0?"white":"#f8fbff", borderBottom:"1px solid #f0f7ff" }}>
                                 <td style={{ padding:"5px 12px" }}>
-                                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                                    <PlayerPhoto player={pl} size={22} />
-                                    <span style={{ color:"#1e3a8a", fontWeight:500, whiteSpace:"nowrap" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
-                                  </div>
+                                  <span style={{ color:"#1e3a8a", fontWeight:500, whiteSpace:"nowrap" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
                                 </td>
                                 <td style={{ padding:"5px 8px", textAlign:"center", fontWeight:800, color:"#1e3a8a" }}>{p.pts??"—"}</td>
                                 <td style={{ padding:"5px 8px", textAlign:"center", color:"#3b82f6" }}>{p.reb??"—"}</td>
@@ -642,24 +625,28 @@
 
             {/* Footer */}
             <div style={{ padding:"10px 12px", marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
-              {spoilerMode ? (
-                <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"5px 0" }}>🙈 Spoiler mode on</p>
+              {isUpcoming ? (
+                <p style={{ fontSize:10, color:"#a5b4fc", textAlign:"center", padding:"4px 0", fontWeight:600 }}>
+                  📅 Upcoming — check back after tip-off
+                </p>
               ) : (
                 <>
-                  {hasStats ? (
-                    <button onClick={() => setModal(true)} style={{ width:"100%", padding:"9px 12px",
-                      borderRadius:12, background:"#eff6ff", border:"1px solid #bfdbfe",
-                      color:"#2563eb", fontSize:11, fontWeight:700, letterSpacing:"0.04em" }}
-                      onMouseEnter={e => e.currentTarget.style.background="#dbeafe"}
-                      onMouseLeave={e => e.currentTarget.style.background="#eff6ff"}>
-                      Full Box Score →
-                    </button>
+                  {spoilerMode ? (
+                    <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"5px 0" }}>🙈 Spoiler mode on</p>
                   ) : (
-                    <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"2px 0" }}>Full stats require GOAT / ALL-STAR tier</p>
+                    hasStats ? (
+                      <button onClick={() => setModal(true)} style={{ width:"100%", padding:"9px 12px",
+                        borderRadius:12, background:"#eff6ff", border:"1px solid #bfdbfe",
+                        color:"#2563eb", fontSize:11, fontWeight:700, letterSpacing:"0.04em" }}
+                        onMouseEnter={e => e.currentTarget.style.background="#dbeafe"}
+                        onMouseLeave={e => e.currentTarget.style.background="#eff6ff"}>
+                        Full Box Score →
+                      </button>
+                    ) : (
+                      <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"2px 0" }}>Full stats require GOAT / ALL-STAR tier</p>
+                    )
                   )}
-                  {game.status === "Final" && (
-                    <HighlightsButton game={game} date={date} />
-                  )}
+                  {isFinal && <HighlightsButton game={game} date={date} />}
                 </>
               )}
             </div>
@@ -674,16 +661,19 @@
       const [player, setPlayer] = useState(initialPlayer);
       const [avg,   setAvg]   = useState(undefined); // undefined=loading, null=no data
       const [games, setGames] = useState(undefined);
-      const [odds,  setOdds]  = useState(undefined);
+      const [top5,  setTop5]  = useState(undefined);
 
       useEffect(() => {
         setPlayer(initialPlayer);
-        setAvg(undefined); setGames(undefined); setOdds(undefined);
-        fetchPlayerStats(initialPlayer.id).then(({ avg, lastGames }) => {
-          setAvg(avg ?? null);
-          setGames(lastGames);
-        });
-        fetchKalshiOdds(initialPlayer.first_name, initialPlayer.last_name).then(setOdds);
+        setAvg(undefined); setGames(undefined); setTop5(undefined);
+        // Ensure team IDs are loaded first so opponent names resolve correctly
+        ensureTeamsById().then(() =>
+          fetchPlayerStats(initialPlayer.id).then(({ avg, lastGames, top5 }) => {
+            setAvg(avg ?? null);
+            setGames(lastGames);
+            setTop5(top5 ?? []);
+          })
+        );
       }, [initialPlayer.id]);
 
       const pct = v => v != null ? `${(v * 100).toFixed(1)}%` : "—";
@@ -698,13 +688,6 @@
         if (above <= 1) return { label:"❄️ Cold Stretch", color:"#60a5fa", bg:"#eff6ff" };
         return { label:"→ Steady", color:"#22c55e", bg:"#f0fdf4" };
       })();
-
-      const AWARD_COLOR = { mvp:"#f59e0b", mip:"#22c55e", defensive:"#3b82f6", rookie:"#a855f7", "all-nba":"#ec4899", default:"#64748b" };
-      function awardColor(q) {
-        q = q.toLowerCase();
-        for (const [k,v] of Object.entries(AWARD_COLOR)) { if (q.includes(k)) return v; }
-        return AWARD_COLOR.default;
-      }
 
       return (
         <div>
@@ -815,9 +798,12 @@
                     <tbody>
                       {games.map((g, i) => {
                         const date = g.game?.date ? fmtDate(g.game.date) : "—";
-                        const opp = g.team?.id === g.game?.home_team_id ? g.game?.visitor_team?.abbreviation : g.game?.home_team?.abbreviation;
-                        const homeScore = g.game?.home_team_score, visScore = g.game?.visitor_team_score;
                         const weAreHome = g.team?.id === g.game?.home_team_id;
+                        const oppId = weAreHome ? g.game?.visitor_team_id : g.game?.home_team_id;
+                        const oppTeamObj = teamsById[oppId];
+                        const opp = oppTeamObj?.abbreviation ?? (oppId ? String(oppId) : null);
+                        const oppFullName = oppTeamObj ? `${oppTeamObj.city ?? ""} ${oppTeamObj.name ?? ""}`.trim() : opp;
+                        const homeScore = g.game?.home_team_score, visScore = g.game?.visitor_team_score;
                         const ourScore = weAreHome ? homeScore : visScore;
                         const theirScore = weAreHome ? visScore : homeScore;
                         const won = ourScore != null && theirScore != null ? ourScore > theirScore : null;
@@ -828,7 +814,7 @@
                             borderBottom:"1px solid #f0f7ff" }}>
                             <td style={{ padding:"7px 10px", color:"#60a5fa", whiteSpace:"nowrap" }}>{date}</td>
                             <td style={{ padding:"7px 10px", fontWeight:600, color:"#1e3a8a", whiteSpace:"nowrap" }}>
-                              {opp ? <span style={{ display:"flex", alignItems:"center", gap:6 }}><TeamLogo abbr={opp} size={18} />{opp}</span> : "—"}
+                              {opp ? <span style={{ display:"flex", alignItems:"center", gap:6 }}><TeamLogo abbr={opp} size={18} />{oppFullName || opp}</span> : "—"}
                             </td>
                             <td style={{ padding:"7px 10px", whiteSpace:"nowrap" }}>
                               {won != null ? (
@@ -860,54 +846,72 @@
               )}
             </div>
 
-            {/* Award Odds */}
+            {/* Top 5 Season Performances */}
             <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
               boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-                <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a" }}>🎯 Award Odds</h3>
-                <a href="https://kalshi.com/markets" target="_blank" rel="noreferrer"
-                  style={{ fontSize:10, color:"#60a5fa", textDecoration:"none", fontWeight:600 }}>
-                  via Kalshi ↗
-                </a>
-              </div>
-              {odds === undefined ? <Spinner /> : !odds || !odds.length ? (
-                <p style={{ color:"#93c5fd", fontSize:13 }}>
-                  No active award markets found.{" "}
-                  <a href={`https://kalshi.com/markets?search=${encodeURIComponent(player.first_name+" "+player.last_name)}`}
-                    target="_blank" rel="noreferrer" style={{ color:"#3b82f6" }}>Search Kalshi ↗</a>
-                </p>
+              <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a", marginBottom:16 }}>🏅 Top 5 Performances This Season</h3>
+              {top5 === undefined ? <Spinner /> : !top5?.length ? (
+                <p style={{ color:"#93c5fd", fontSize:13 }}>No game data available yet</p>
               ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {odds.map((o, i) => {
-                    const pct = Math.round(o.prob * 100);
-                    const col = awardColor(o.question);
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {top5.map((g, i) => {
+                    const date = g.game?.date ? fmtDate(g.game.date) : "—";
+                    const weAreHome = g.team?.id === g.game?.home_team_id;
+                    const oppId = weAreHome ? g.game?.visitor_team_id : g.game?.home_team_id;
+                    const oppTeamData = teamsById[oppId];
+                    const oppAbbr = oppTeamData?.abbreviation ?? (oppId ? String(oppId) : null);
+                    const oppName = oppTeamData ? `${oppTeamData.city ?? ""} ${oppTeamData.name ?? ""}`.trim() : oppAbbr;
+                    const combined = (g.pts??0) + (g.reb??0) + (g.ast??0);
+                    const ourScore = weAreHome ? g.game?.home_team_score : g.game?.visitor_team_score;
+                    const theirScore = weAreHome ? g.game?.visitor_team_score : g.game?.home_team_score;
+                    const won = ourScore != null && theirScore != null ? ourScore > theirScore : null;
+                    const rankColors = ["#f59e0b","#94a3b8","#cd7f32","#60a5fa","#60a5fa"];
                     return (
-                      <a key={i} href={o.url} target="_blank" rel="noreferrer"
-                        style={{ textDecoration:"none", display:"block",
-                          background:"#f8fbff", borderRadius:14, padding:"12px 16px",
-                          border:"1px solid #dbeafe", transition:"all 0.15s" }}
-                        onMouseEnter={e => { e.currentTarget.style.background="#eff6ff"; e.currentTarget.style.borderColor="#bfdbfe"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background="#f8fbff"; e.currentTarget.style.borderColor="#dbeafe"; }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                          <span style={{ fontSize:12, fontWeight:700, color:"#1e3a8a", flex:1, paddingRight:12 }}>{o.question}</span>
-                          <span style={{ fontSize:18, fontWeight:900, color:col, flexShrink:0 }}>{pct}%</span>
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:14,
+                        background: i===0 ? "#fffbeb" : "#f8fbff",
+                        borderRadius:14, padding:"12px 16px",
+                        border: i===0 ? "1px solid #fde68a" : "1px solid #dbeafe" }}>
+                        <div style={{ width:28, height:28, borderRadius:"50%", flexShrink:0,
+                          background:`linear-gradient(135deg,${rankColors[i]}30,${rankColors[i]}60)`,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          fontSize:13, fontWeight:900, color:rankColors[i] }}>
+                          {i+1}
                         </div>
-                        <div style={{ background:"#e2e8f0", borderRadius:20, height:6, overflow:"hidden" }}>
-                          <div style={{ width:`${pct}%`, height:"100%", borderRadius:20,
-                            background:`linear-gradient(90deg, ${col}80, ${col})`,
-                            transition:"width 0.8s ease" }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#1e3a8a" }}>{date}</span>
+                            {oppAbbr && (
+                              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#1e3a8a", fontWeight:600 }}>
+                                vs <TeamLogo abbr={oppAbbr} size={18} />
+                                <span>{oppName || oppAbbr}</span>
+                              </span>
+                            )}
+                            {won != null && (
+                              <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:20,
+                                background:won?"#f0fdf4":"#fff1f2", color:won?"#15803d":"#dc2626" }}>
+                                {won?"W":"L"} {ourScore}–{theirScore}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", gap:12 }}>
+                            <span style={{ fontSize:13, fontWeight:900, color:"#1e3a8a" }}>{g.pts??0} <span style={{ fontSize:10, fontWeight:600, color:"#60a5fa" }}>PTS</span></span>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#3b82f6" }}>{g.reb??0} <span style={{ fontSize:10, fontWeight:600, color:"#93c5fd" }}>REB</span></span>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#3b82f6" }}>{g.ast??0} <span style={{ fontSize:10, fontWeight:600, color:"#93c5fd" }}>AST</span></span>
+                            {g.stl>0 && <span style={{ fontSize:11, color:"#60a5fa" }}>{g.stl} STL</span>}
+                            {g.blk>0 && <span style={{ fontSize:11, color:"#60a5fa" }}>{g.blk} BLK</span>}
+                          </div>
                         </div>
-                      </a>
+                        <div style={{ textAlign:"center", flexShrink:0 }}>
+                          <div style={{ fontSize:22, fontWeight:900, color: i===0?"#f59e0b":"#1d4ed8", lineHeight:1 }}>{combined}</div>
+                          <div style={{ fontSize:9, fontWeight:700, color:"#93c5fd", letterSpacing:"0.07em" }}>COMBINED</div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </div>
 
-            {/* Team X / Twitter Feed */}
-            {player.team?.abbreviation && TEAM_TWITTER[player.team.abbreviation] && (
-              <TwitterFeed handle={TEAM_TWITTER[player.team.abbreviation]} />
-            )}
           </div>
         </div>
       );
@@ -921,6 +925,7 @@
         ...(g.visitor.players ?? []).map(p => ({ ...p, teamAbbr: g.visitor.abbreviation })),
       ]).filter(p => p.pts != null && p.player);
 
+      if (spoilerMode) return null;
       if (allPlayers.length === 0) return null;
 
       const top5 = (key) =>
@@ -948,7 +953,7 @@
       // Reusable avatar: player photo with tiny team logo badge
       const PlayerAvatar = ({ player, teamAbbr, photoSize = 32 }) => (
         <div style={{ position:"relative", flexShrink:0 }}>
-          <PlayerPhoto player={player} size={photoSize} />
+          <PlayerPhoto player={player} size={photoSize} fetchDelay={300} />
           <div style={{ position:"absolute", bottom:-2, right:-2,
             width:14, height:14, borderRadius:"50%", overflow:"hidden",
             border:"1px solid white", background:"white" }}>
@@ -966,24 +971,30 @@
             <span style={{ fontSize:11, fontWeight:800, color, letterSpacing:"0.06em", textTransform:"uppercase" }}>{title}</span>
           </div>
           {players.map((p, i) => {
-            const name = `${p.player.first_name?.[0]}. ${p.player.last_name}`;
+            const isFirst = i === 0;
+            const name = isFirst
+              ? `${p.player.first_name} ${p.player.last_name}`
+              : `${p.player.first_name?.[0]}. ${p.player.last_name}`;
             return (
               <div key={p.player?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8,
-                padding:"6px 0", borderBottom: i < players.length-1 ? "1px solid #f0f6ff" : "none",
+                padding: isFirst ? "8px 0 10px" : "5px 0",
+                borderBottom: i < players.length-1 ? "1px solid #f0f6ff" : "none",
                 ...rankStyle(i) }}>
                 <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
                   color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
                   {i < 3 ? medals[i] : `${i+1}.`}
                 </span>
-                <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={30} />
-                <span style={{ flex:1, fontSize:12, fontWeight: i===0 ? 800 : 600,
+                {isFirst
+                  ? <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={44} />
+                  : <div style={{ width:44, flexShrink:0 }} />}
+                <span style={{ flex:1, fontSize: isFirst ? 13 : 12, fontWeight: isFirst ? 800 : 600,
                   color:"#1e3a8a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {name}
                 </span>
                 {spoilerMode ? (
                   <span style={{ fontSize:11, color:"#bfdbfe" }}>—</span>
                 ) : (
-                  <span style={{ fontSize: i===0 ? 15 : 13, fontWeight:900, color,
+                  <span style={{ fontSize: isFirst ? 18 : 13, fontWeight:900, color,
                     minWidth:26, textAlign:"right", flexShrink:0 }}>
                     {p[statKey]}
                   </span>
@@ -996,7 +1007,7 @@
 
       // All-around section — ranked by PTS+AST+REB, each stat shown separately
       const AllAroundSection = () => (
-        <div style={{ flex:"0 0 auto", width:270 }}>
+        <div style={{ flex:"0 0 auto", width:280 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
             <span style={{ fontSize:18 }}>🌟</span>
             <span style={{ fontSize:11, fontWeight:800, color:"#b45309",
@@ -1004,17 +1015,23 @@
             <span style={{ fontSize:10, color:"#d97706", fontWeight:600, marginLeft:2 }}>PTS · AST · REB</span>
           </div>
           {allRounders.map((p, i) => {
-            const name = `${p.player.first_name?.[0]}. ${p.player.last_name}`;
+            const isFirst = i === 0;
+            const name = isFirst
+              ? `${p.player.first_name} ${p.player.last_name}`
+              : `${p.player.first_name?.[0]}. ${p.player.last_name}`;
             return (
               <div key={p.player?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8,
-                padding:"6px 0", borderBottom: i < allRounders.length-1 ? "1px solid #fef3c7" : "none",
+                padding: isFirst ? "8px 0 10px" : "5px 0",
+                borderBottom: i < allRounders.length-1 ? "1px solid #fef3c7" : "none",
                 ...rankStyle(i) }}>
                 <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
                   color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
                   {i < 3 ? medals[i] : `${i+1}.`}
                 </span>
-                <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={30} />
-                <span style={{ flex:1, fontSize:12, fontWeight: i===0 ? 800 : 600,
+                {isFirst
+                  ? <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={44} />
+                  : <div style={{ width:44, flexShrink:0 }} />}
+                <span style={{ flex:1, fontSize: isFirst ? 13 : 12, fontWeight: isFirst ? 800 : 600,
                   color:"#1e3a8a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {name}
                 </span>
@@ -1022,13 +1039,13 @@
                   <span style={{ fontSize:11, color:"#bfdbfe" }}>—</span>
                 ) : (
                   <div style={{ display:"flex", gap:3, alignItems:"baseline", flexShrink:0 }}>
-                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#1d4ed8" }}>{p.pts ?? 0}</span>
+                    <span style={{ fontSize: isFirst ? 14 : 12, fontWeight:900, color:"#1d4ed8" }}>{p.pts ?? 0}</span>
                     <span style={{ fontSize:9, color:"#93c5fd", fontWeight:600 }}>p</span>
                     <span style={{ fontSize:9, color:"#cbd5e1" }}>·</span>
-                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#0891b2" }}>{p.ast ?? 0}</span>
+                    <span style={{ fontSize: isFirst ? 14 : 12, fontWeight:900, color:"#0891b2" }}>{p.ast ?? 0}</span>
                     <span style={{ fontSize:9, color:"#7dd3fc", fontWeight:600 }}>a</span>
                     <span style={{ fontSize:9, color:"#cbd5e1" }}>·</span>
-                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#7c3aed" }}>{p.reb ?? 0}</span>
+                    <span style={{ fontSize: isFirst ? 14 : 12, fontWeight:900, color:"#7c3aed" }}>{p.reb ?? 0}</span>
                     <span style={{ fontSize:9, color:"#c4b5fd", fontWeight:600 }}>r</span>
                   </div>
                 )}
@@ -1062,7 +1079,7 @@
     }
 
     // ── Home View ────────────────────────────────────────────────────────────────
-    function HomeView({ gameCache, loadDate, spoilerMode }) {
+    function HomeView({ gameCache, loadDate, spoilerMode, standings }) {
       const [selected, setSelected] = useState(DATES[1]);
       const [loading,  setLoading]  = useState(false);
       const [error,    setError]    = useState(null);
@@ -1128,7 +1145,7 @@
                 <p style={{ fontSize:48, marginBottom:12 }}>😴</p>
                 <p style={{ fontWeight:700, color:"#1e3a8a" }}>No games on {fmtDate(selected)}</p>
               </div>
-            ) : games.map((g, i) => <GameCard key={g.id} game={g} delay={i} spoilerMode={spoilerMode} date={selected} />)}
+            ) : games.map((g, i) => <GameCard key={g.id} game={g} delay={i} spoilerMode={spoilerMode} date={selected} standings={standings} />)}
           </div>
         </>
       );
@@ -1189,7 +1206,7 @@
                       transition:"all 0.2s" }}
                     onMouseEnter={e => { e.currentTarget.style.background="#eff6ff"; e.currentTarget.style.transform="translateY(-2px)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background="white"; e.currentTarget.style.transform="translateY(0)"; }}>
-                    <PlayerPhoto player={p} size={52} />
+                    <PlayerPhoto player={p} size={52} fetchDelay={1000} />
                     <div style={{ textAlign:"center" }}>
                       <p style={{ fontSize:12, fontWeight:800, color:"#1e3a8a" }}>{p.first_name} {p.last_name}</p>
                       <p style={{ fontSize:10, color:"#60a5fa", fontWeight:600 }}>
@@ -1246,7 +1263,7 @@
                   {playerResults.map(p => (
                     <div key={p.id} style={{ background:"white", borderRadius:14, padding:"12px 14px",
                       border:"1px solid #dbeafe", display:"flex", alignItems:"center", gap:12 }}>
-                      <PlayerPhoto player={p} size={40} />
+                      <PlayerPhoto player={p} size={40} fetchDelay={800} />
                       <div style={{ flex:1, minWidth:0 }}>
                         <p style={{ fontSize:13, fontWeight:800, color:"#1e3a8a" }}>{p.first_name} {p.last_name}</p>
                         <p style={{ fontSize:11, color:"#60a5fa" }}>
@@ -1313,7 +1330,7 @@
     }
 
     // ── Team View ────────────────────────────────────────────────────────────────
-    function TeamView({ team, gameCache, loadDate, onBack, spoilerMode }) {
+    function TeamView({ team, gameCache, loadDate, onBack, spoilerMode, standings }) {
       const [loadingAll, setLoadingAll] = useState(true);
 
       useEffect(() => {
@@ -1329,11 +1346,24 @@
         )
         .sort((a, b) => b.date.localeCompare(a.date));
 
+      // Weekly record from last 7 days of games
+      const finishedGames = teamGames.filter(g => g.status === "Final");
+      const weeklyW = finishedGames.filter(g => {
+        const isHome = g.home.abbreviation === team.abbreviation;
+        const our = isHome ? (g.home.score??0) : (g.visitor.score??0);
+        const opp = isHome ? (g.visitor.score??0) : (g.home.score??0);
+        return our > opp;
+      }).length;
+      const weeklyL = finishedGames.length - weeklyW;
+
+      // Season record from standings
+      const seasonRec = standings?.[team.abbreviation];
+
       return (
         <div>
           <div style={{ background:"white", borderBottom:"1px solid #dbeafe" }}>
             <div style={{ maxWidth:1280, margin:"0 auto", padding:"16px 24px",
-              display:"flex", alignItems:"center", gap:16 }}>
+              display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
               <button onClick={onBack} style={{ background:"#f0f6ff", border:"1px solid #dbeafe",
                 borderRadius:10, padding:"8px 14px", color:"#3b82f6", fontWeight:700, fontSize:13 }}>← Back</button>
               <TeamLogo abbr={team.abbreviation} size={44} />
@@ -1341,7 +1371,29 @@
                 <p style={{ fontSize:11, color:"#93c5fd", fontWeight:600 }}>{team.city}</p>
                 <h2 style={{ fontSize:20, fontWeight:900, color:"#1e3a8a" }}>{team.name}</h2>
               </div>
-              <p style={{ marginLeft:"auto", fontSize:12, color:"#93c5fd" }}>Last 7 days</p>
+              {/* Records */}
+              <div style={{ display:"flex", gap:10, marginLeft:"auto" }}>
+                {seasonRec && (
+                  <div style={{ background:"#eff6ff", borderRadius:12, padding:"8px 16px", textAlign:"center",
+                    border:"1px solid #dbeafe" }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:"#1d4ed8", lineHeight:1 }}>
+                      {seasonRec.wins}–{seasonRec.losses}
+                    </div>
+                    <div style={{ fontSize:9, fontWeight:700, color:"#60a5fa", letterSpacing:"0.07em", marginTop:2 }}>SEASON</div>
+                  </div>
+                )}
+                {finishedGames.length > 0 && (
+                  <div style={{ background: weeklyW > weeklyL ? "#f0fdf4" : weeklyW < weeklyL ? "#fff1f2" : "#f8fbff",
+                    borderRadius:12, padding:"8px 16px", textAlign:"center",
+                    border: `1px solid ${weeklyW > weeklyL ? "#bbf7d0" : weeklyW < weeklyL ? "#fecaca" : "#dbeafe"}` }}>
+                    <div style={{ fontSize:18, fontWeight:900, lineHeight:1,
+                      color: weeklyW > weeklyL ? "#15803d" : weeklyW < weeklyL ? "#dc2626" : "#1e3a8a" }}>
+                      {weeklyW}–{weeklyL}
+                    </div>
+                    <div style={{ fontSize:9, fontWeight:700, color:"#60a5fa", letterSpacing:"0.07em", marginTop:2 }}>LAST 7 DAYS</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1352,87 +1404,14 @@
               <p style={{ fontWeight:700, color:"#1e3a8a" }}>No games in the last 7 days</p>
             </div>
           ) : (
-            <div style={{ maxWidth:1280, margin:"0 auto", padding:"24px", display:"flex", flexDirection:"column", gap:28 }}>
-              {TEAM_TWITTER[team.abbreviation] && (
-                <TwitterFeed handle={TEAM_TWITTER[team.abbreviation]} />
-              )}
-              {teamGames.map((game, idx) => {
-                const isHome  = game.home.abbreviation === team.abbreviation;
-                const ourTeam = isHome ? game.home : game.visitor;
-                const oppTeam = isHome ? game.visitor : game.home;
-                const weWon   = (ourTeam.score??0) > (oppTeam.score??0);
-                const theyWon = (oppTeam.score??0) > (ourTeam.score??0);
-                const hasStats = [...(game.home.players??[]),...(game.visitor.players??[])].some(p=>p.pts!=null);
-                const wTeam = weWon?ourTeam:theyWon?oppTeam:null;
-                const potg  = wTeam ? byPts(wTeam.players??[])[0]??null : null;
-
-                return (
-                  <div key={game.id} className="card-anim" style={{ background:"white", borderRadius:20,
-                    border:"1px solid #dbeafe", boxShadow:"0 2px 18px rgba(59,130,246,0.08)", overflow:"hidden",
-                    animationDelay:`${idx*80}ms` }}>
-                    <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:"18px 24px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                        <span style={{ fontSize:12, color:"#60a5fa", fontWeight:600 }}>{dayLabel(game.date)} · {fmtDate(game.date)}</span>
-                        <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, letterSpacing:"0.07em",
-                          background:spoilerMode?"#f0f6ff":game.status==="Final"?"#dbeafe":"#fef3c7",
-                          color:spoilerMode?"#93c5fd":game.status==="Final"?"#1d4ed8":"#92400e" }}>
-                          {spoilerMode?"VS":game.status==="Final"?"FINAL":(game.status??"TBD")}
-                        </span>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
-                          <TeamLogo abbr={ourTeam.abbreviation} size={50} />
-                          <div>
-                            <p style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.08em" }}>{isHome?"HOME":"AWAY"}</p>
-                            <p style={{ fontSize:15, fontWeight:800, color:"#1e3a8a" }}>{ourTeam.city} {ourTeam.name}</p>
-                          </div>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
-                          <span style={{ fontSize:44, fontWeight:900, lineHeight:1,
-                            filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
-                            color:spoilerMode?"#93c5fd":weWon?"#1e3a8a":"#93c5fd" }}>{ourTeam.score??"—"}</span>
-                          <span style={{ color:"#bfdbfe", fontSize:24, fontWeight:200 }}>–</span>
-                          <span style={{ fontSize:44, fontWeight:900, lineHeight:1,
-                            filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
-                            color:spoilerMode?"#93c5fd":theyWon?"#1e3a8a":"#93c5fd" }}>{oppTeam.score??"—"}</span>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, justifyContent:"flex-end" }}>
-                          <div style={{ textAlign:"right" }}>
-                            <p style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.08em" }}>{isHome?"AWAY":"HOME"}</p>
-                            <p style={{ fontSize:15, fontWeight:800, color:"#1e3a8a" }}>{oppTeam.city} {oppTeam.name}</p>
-                          </div>
-                          <TeamLogo abbr={oppTeam.abbreviation} size={50} />
-                        </div>
-                      </div>
-                      {!spoilerMode && potg?.player && potg.pts != null && (
-                        <div style={{ marginTop:12, padding:"8px 14px", background:"rgba(255,251,235,0.95)",
-                          borderRadius:12, border:"1px solid #fde68a", display:"flex", alignItems:"center", gap:12 }}>
-                          <PlayerPhoto player={potg.player} size={36} />
-                          <div>
-                            <span style={{ fontSize:11, fontWeight:700, color:"#b45309" }}>🏆 Player of the Game · {wTeam.abbreviation}: </span>
-                            <span style={{ fontSize:11, fontWeight:800, color:"#78350f" }}>{potg.player.first_name} {potg.player.last_name}</span>
-                            <span style={{ fontSize:11, color:"#b45309" }}> · {potg.pts} pts{potg.reb?` · ${potg.reb} reb`:""}{potg.ast?` · ${potg.ast} ast`:""}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {!spoilerMode && hasStats ? (
-                      <div style={{ padding:"20px 24px" }}><BoxScoreTable side={game.visitor} /><BoxScoreTable side={game.home} /></div>
-                    ) : (
-                      <div style={{ padding:"14px 24px", textAlign:"center" }}>
-                        <p style={{ fontSize:11, color:"#bfdbfe" }}>
-                          {spoilerMode ? "🙈 Spoiler mode on" : "Full stats require GOAT / ALL-STAR tier"}
-                        </p>
-                      </div>
-                    )}
-                    {/* Highlights button in TeamView */}
-                    {!spoilerMode && game.status === "Final" && (() => {
-                      // Use a self-contained IIFE to manage highlights modal per game
-                      return <TeamGameHighlightsBtn game={game} />;
-                    })()}
-                  </div>
-                );
-              })}
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:"24px" }}>
+              {/* Same grid layout as the main page */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16, alignItems:"start" }}>
+                {teamGames.map((game, idx) => (
+                  <GameCard key={game.id} game={game} delay={idx} spoilerMode={spoilerMode}
+                    date={game.date} standings={standings} />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1467,8 +1446,9 @@
     // ── Root ─────────────────────────────────────────────────────────────────────
     function NBAGames() {
       const [view,        setView]        = useState("home");
-      const [spoilerMode, setSpoilerMode] = useState(false);
+      const [spoilerMode, setSpoilerMode] = useState(() => { try { return localStorage.getItem("nba-spoiler-mode") === "true"; } catch { return false; } });
       const [gameCache,   setGameCache]   = useState({});
+      const [standings,   setStandings]   = useState({});
       const [favTeams,    setFavTeams]    = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-teams")??"[]"); } catch { return []; } });
       const [favPlayers,  setFavPlayers]  = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-players")??"[]"); } catch { return []; } });
 
@@ -1478,6 +1458,8 @@
 
       useEffect(() => { localStorage.setItem("nba-fav-teams",   JSON.stringify(favTeams));   }, [favTeams]);
       useEffect(() => { localStorage.setItem("nba-fav-players", JSON.stringify(favPlayers)); }, [favPlayers]);
+      useEffect(() => { localStorage.setItem("nba-spoiler-mode", String(spoilerMode)); }, [spoilerMode]);
+      useEffect(() => { fetchStandings().then(setStandings); }, []);
 
       const loadDate = useCallback(async date => {
         if (gameCacheRef.current[date] !== undefined || inFlight.current.has(date)) return null;
@@ -1538,13 +1520,13 @@
             </div>
           </div>
 
-          {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} />}
+          {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} standings={standings} />}
           {isFavs  && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
             favPlayers={favPlayers} setFavPlayers={setFavPlayers}
             onSelectTeam={t => setView({type:"team",team:t})}
             onSelectPlayer={p => setView({type:"player",player:p})} />}
           {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
-            onBack={() => setView("favorites")} spoilerMode={spoilerMode} />}
+            onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
           {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
         </div>
       );
