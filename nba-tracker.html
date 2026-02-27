@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏀 NBA CatchUp</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #eef4ff; }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulseGlow { 0%,100% { box-shadow:0 0 0 0 rgba(30,58,138,.3); } 50% { box-shadow:0 0 0 6px rgba(30,58,138,0); } }
+    .card-anim { animation: fadeUp 0.25s ease both; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:#eef4ff; }
+    ::-webkit-scrollbar-thumb { background:#bfdbfe; border-radius:4px; }
+    button, input { font-family:inherit; }
+    button { cursor:pointer; border:none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ── Config ───────────────────────────────────────────────────────────────────
+    const API_V1  = "https://api.balldontlie.io/v1";
+    const API_KEY = "60bc54f3-f8d0-4f96-b7c0-bd6cb513e7ef";
+    const SEASON  = 2025; // 2025-26 season
+    const logoUrl = abbr => `https://a.espncdn.com/i/teamlogos/nba/500/${(abbr ?? "").toLowerCase()}.png`;
+
+    // ── TheSportsDB photo cache & fetcher ────────────────────────────────────────
+    // key: "Firstname Lastname" → URL string | null (null = tried, not found)
+    const sportsDbCache = {};
+    async function fetchSportsDbPhoto(firstName, lastName) {
+      const key = `${firstName} ${lastName}`;
+      if (key in sportsDbCache) return sportsDbCache[key];
+      try {
+        const r = await fetch(
+          `https://www.thesportsdb.com/api/v1/json/123/searchplayers.php?p=${encodeURIComponent(key)}`
+        );
+        if (!r.ok) { sportsDbCache[key] = null; return null; }
+        const data = await r.json();
+        const pl = data.player?.[0];
+        const url = pl?.strThumb || pl?.strCutout || null;
+        sportsDbCache[key] = url;
+        return url;
+      } catch { sportsDbCache[key] = null; return null; }
+    }
+
+
+    // ── NBA team official X (Twitter) handles ────────────────────────────────────
+    const TEAM_TWITTER = {
+      ATL:"ATLHawks", BOS:"celtics", BKN:"BrooklynNets", CHA:"hornets",
+      CHI:"chicagobulls", CLE:"cavs", DAL:"dallasmavs", DEN:"nuggets",
+      DET:"detroitpistons", GSW:"warriors", HOU:"houstonrockets", IND:"IndianaPacers",
+      LAC:"LAClippers", LAL:"Lakers", MEM:"memgrizz", MIA:"MiamiHEAT",
+      MIL:"Bucks", MIN:"Timberwolves", NOP:"PelicansNBA", NYK:"nyknicks",
+      OKC:"okcthunder", ORL:"OrlandoMagic", PHI:"sixers", PHX:"Suns",
+      POR:"trailblazers", SAC:"SacramentoKings", SAS:"spurs", TOR:"Raptors",
+      UTA:"utahjazz", WAS:"WashWizards",
+    };
+
+    // ── All 30 teams ─────────────────────────────────────────────────────────────
+    const ALL_TEAMS = [
+      {abbreviation:"ATL",city:"Atlanta",      name:"Hawks"},       {abbreviation:"BOS",city:"Boston",       name:"Celtics"},
+      {abbreviation:"BKN",city:"Brooklyn",     name:"Nets"},        {abbreviation:"CHA",city:"Charlotte",    name:"Hornets"},
+      {abbreviation:"CHI",city:"Chicago",      name:"Bulls"},       {abbreviation:"CLE",city:"Cleveland",    name:"Cavaliers"},
+      {abbreviation:"DAL",city:"Dallas",       name:"Mavericks"},   {abbreviation:"DEN",city:"Denver",       name:"Nuggets"},
+      {abbreviation:"DET",city:"Detroit",      name:"Pistons"},     {abbreviation:"GSW",city:"Golden State", name:"Warriors"},
+      {abbreviation:"HOU",city:"Houston",      name:"Rockets"},     {abbreviation:"IND",city:"Indiana",      name:"Pacers"},
+      {abbreviation:"LAC",city:"LA",           name:"Clippers"},    {abbreviation:"LAL",city:"Los Angeles",  name:"Lakers"},
+      {abbreviation:"MEM",city:"Memphis",      name:"Grizzlies"},   {abbreviation:"MIA",city:"Miami",        name:"Heat"},
+      {abbreviation:"MIL",city:"Milwaukee",    name:"Bucks"},       {abbreviation:"MIN",city:"Minnesota",    name:"Timberwolves"},
+      {abbreviation:"NOP",city:"New Orleans",  name:"Pelicans"},    {abbreviation:"NYK",city:"New York",     name:"Knicks"},
+      {abbreviation:"OKC",city:"Oklahoma City",name:"Thunder"},     {abbreviation:"ORL",city:"Orlando",      name:"Magic"},
+      {abbreviation:"PHI",city:"Philadelphia", name:"76ers"},       {abbreviation:"PHX",city:"Phoenix",      name:"Suns"},
+      {abbreviation:"POR",city:"Portland",     name:"Trail Blazers"},{abbreviation:"SAC",city:"Sacramento",  name:"Kings"},
+      {abbreviation:"SAS",city:"San Antonio",  name:"Spurs"},       {abbreviation:"TOR",city:"Toronto",      name:"Raptors"},
+      {abbreviation:"UTA",city:"Utah",         name:"Jazz"},        {abbreviation:"WAS",city:"Washington",   name:"Wizards"},
+    ];
+
+    // ── BallDontLie API ──────────────────────────────────────────────────────────
+    async function apiFetch(path) {
+      try {
+        const r = await fetch(`${API_V1}${path}`, { headers: { Authorization: API_KEY } });
+        if (!r.ok) return { _err: r.status };
+        return await r.json(); // await so JSON parse errors are caught below
+      } catch { return { _err: "network" }; }
+    }
+
+    async function fetchAll(basePath) {
+      let all = [], cursor = null;
+      while (true) {
+        const sep = basePath.includes("?") ? "&" : "?";
+        const res = await apiFetch(`${basePath}${sep}per_page=100${cursor ? `&cursor=${cursor}` : ""}`);
+        if (res._err) return { _err: res._err };
+        all = all.concat(res.data ?? []);
+        cursor = res.meta?.next_cursor ?? null;
+        if (!cursor) break;
+      }
+      return { data: all };
+    }
+
+    function parseMin(m) {
+      if (!m) return 0;
+      const s = String(m);
+      if (s.includes(":")) { const [mins, secs] = s.split(":").map(Number); return mins + (secs || 0) / 60; }
+      return parseFloat(s) || 0;
+    }
+
+    async function fetchPlayerStats(playerId) {
+      const res = await fetchAll(`/stats?player_ids[]=${playerId}&seasons[]=${SEASON}`);
+      if (res._err) return { avg: null, lastGames: [] };
+      const all = res.data ?? [];
+      // Only count games where player actually played (has minutes)
+      const played = all.filter(g => parseMin(g.min) > 0);
+      // Last 5 games by date (all games, not just played)
+      const lastGames = [...all]
+        .filter(g => g.game?.date)
+        .sort((a, b) => new Date(b.game.date) - new Date(a.game.date))
+        .slice(0, 5);
+      if (!played.length) return { avg: null, lastGames };
+      const n = played.length;
+      const sum = key => played.reduce((acc, g) => acc + (parseFloat(g[key]) || 0), 0);
+      const fgm = sum("fgm"), fga = sum("fga");
+      const fg3m = sum("fg3m"), fg3a = sum("fg3a");
+      const ftm = sum("ftm"), fta = sum("fta");
+      return {
+        lastGames,
+        avg: {
+          games_played: n,
+          pts: +(sum("pts") / n).toFixed(1),
+          reb: +(sum("reb") / n).toFixed(1),
+          ast: +(sum("ast") / n).toFixed(1),
+          stl: +(sum("stl") / n).toFixed(1),
+          blk: +(sum("blk") / n).toFixed(1),
+          min: +(played.reduce((a, g) => a + parseMin(g.min), 0) / n).toFixed(1),
+          fg_pct:  fga  > 0 ? fgm  / fga  : null,
+          fg3_pct: fg3a > 0 ? fg3m / fg3a : null,
+          ft_pct:  fta  > 0 ? ftm  / fta  : null,
+        },
+      };
+    }
+
+    // ── Kalshi odds (public read, no auth needed for market data) ────────────────
+    async function fetchKalshiOdds(firstName, lastName) {
+      try {
+        const name = `${firstName} ${lastName}`;
+        const r = await fetch(
+          `https://trading-api.kalshi.com/trade-api/v2/markets?status=open&limit=50&search=${encodeURIComponent(name)}`,
+          { headers: { Accept: "application/json" } }
+        );
+        if (!r.ok) return null;
+        const data = await r.json();
+        const markets = Array.isArray(data.markets) ? data.markets : [];
+        const AWARDS = ["mvp","most improved","defensive player","dpoy","rookie","all-nba","finals mvp","scoring","6th man","championship","mip"];
+        return markets
+          .filter(m => {
+            const title = (m.title ?? m.subtitle ?? "").toLowerCase();
+            return AWARDS.some(a => title.includes(a));
+          })
+          .map(m => {
+            // Kalshi yes_bid is in cents (0–99); mid-price = (yes_bid + yes_ask) / 2
+            const bid = m.yes_bid ?? null, ask = m.yes_ask ?? null;
+            const prob = bid != null ? (ask != null ? (bid + ask) / 2 / 100 : bid / 100) : null;
+            const ticker = m.event_ticker ?? m.ticker ?? "";
+            return {
+              question: m.title ?? m.subtitle ?? ticker,
+              prob,
+              url: `https://kalshi.com/markets/${ticker}`,
+            };
+          })
+          .filter(m => m.prob !== null && m.prob > 0.005)
+          .sort((a, b) => b.prob - a.prob);
+      } catch { return null; }
+    }
+
+    // ── Date helpers ─────────────────────────────────────────────────────────────
+    function dateStr(daysAgo = 0) {
+      const d = new Date(); d.setDate(d.getDate() - daysAgo);
+      return d.toISOString().split("T")[0];
+    }
+    function fmtDate(s) { return new Date(s + "T12:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric" }); }
+    function dayLabel(s) {
+      if (s === dateStr(0)) return "Today";
+      if (s === dateStr(1)) return "Yesterday";
+      return new Date(s + "T12:00:00").toLocaleDateString("en-US", { weekday:"short" });
+    }
+    const DATES = Array.from({ length: 7 }, (_, i) => dateStr(i));
+
+    // ── Data normalisation ───────────────────────────────────────────────────────
+    const byPts = arr => [...arr].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
+    function fromBoxScores(raw) {
+      return raw.map(g => ({
+        id: g.id, status: g.status,
+        home:    { ...g.home_team,    score: g.home_team_score,    players: byPts(g.home_team?.players    ?? []) },
+        visitor: { ...g.visitor_team, score: g.visitor_team_score, players: byPts(g.visitor_team?.players ?? []) },
+      }));
+    }
+    function fromGamesStats(games, stats) {
+      return games.map(g => {
+        const gs = stats.filter(s => s.game?.id === g.id);
+        return {
+          id: g.id, status: g.status,
+          home:    { ...g.home_team,    score: g.home_team_score,    players: byPts(gs.filter(s => s.team?.id === g.home_team?.id)) },
+          visitor: { ...g.visitor_team, score: g.visitor_team_score, players: byPts(gs.filter(s => s.team?.id === g.visitor_team?.id)) },
+        };
+      });
+    }
+    async function loadGames(date) {
+      const box = await fetchAll(`/box_scores?date=${date}`);
+      if (!box._err) return { games: fromBoxScores(box.data ?? []) };
+      const [gRes, sRes] = await Promise.all([fetchAll(`/games?dates[]=${date}`), fetchAll(`/stats?dates[]=${date}`)]);
+      if (gRes._err) return { games: null, errCode: gRes._err };
+      return { games: fromGamesStats(gRes.data ?? [], sRes?.data && !sRes._err ? sRes.data : []) };
+    }
+
+    // ── PlayerPhoto — TheSportsDB, lazy-fetched, globally cached ─────────────────
+    function PlayerPhoto({ player, size = 40 }) {
+      const firstName = player?.first_name ?? "";
+      const lastName  = player?.last_name  ?? "";
+      const cacheKey  = firstName && lastName ? `${firstName} ${lastName}` : null;
+
+      // undefined = not yet fetched | null = tried, none found | string = URL
+      const [src, setSrc] = useState(() =>
+        cacheKey && cacheKey in sportsDbCache ? sportsDbCache[cacheKey] : undefined
+      );
+      const [failed, setFailed] = useState(false);
+
+      useEffect(() => {
+        if (!cacheKey) return;
+        if (cacheKey in sportsDbCache) { setSrc(sportsDbCache[cacheKey]); return; }
+        // Fetch once per unique name; result stored in module-level cache
+        fetchSportsDbPhoto(firstName, lastName).then(url => setSrc(url));
+      }, [cacheKey]);
+
+      const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`;
+      const circleStyle = { width:size, height:size, borderRadius:"50%", flexShrink:0 };
+
+      if (!src || failed) return (
+        <div style={{ ...circleStyle, background:"linear-gradient(135deg,#3b82f6,#1d4ed8)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize: size * 0.32, fontWeight:800, color:"white" }}>
+          {initials}
+        </div>
+      );
+      return (
+        <img src={src} alt={initials}
+          style={{ ...circleStyle, objectFit:"cover", objectPosition:"top center" }}
+          onError={() => setFailed(true)} />
+      );
+    }
+
+    // ── TeamLogo ─────────────────────────────────────────────────────────────────
+    function TeamLogo({ abbr, size = 52 }) {
+      const [failed, setFailed] = useState(false);
+      if (failed) return (
+        <div style={{ width:size, height:size, borderRadius:8, background:"#dbeafe",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:size*0.27, fontWeight:900, color:"#3b82f6" }}>
+          {(abbr ?? "?").slice(0,3).toUpperCase()}
+        </div>
+      );
+      return <img src={logoUrl(abbr)} alt={abbr ?? ""} width={size} height={size}
+        style={{ objectFit:"contain" }} onError={() => setFailed(true)} />;
+    }
+
+    // ── TwitterFeed ──────────────────────────────────────────────────────────────
+    // X/Twitter's embed widget often can't render from local/sandboxed files.
+    // We try the widget; if it fails or times out in 4s we show a fallback link.
+    function TwitterFeed({ handle }) {
+      const containerRef = useRef(null);
+      const [widgetState, setWidgetState] = useState("loading"); // loading | ok | failed
+
+      useEffect(() => {
+        if (!containerRef.current || !handle) return;
+        containerRef.current.innerHTML = "";
+        setWidgetState("loading");
+
+        // Fallback timer — if nothing renders in 4 seconds, show the link card
+        const fallbackTimer = setTimeout(() => setWidgetState("failed"), 4000);
+
+        const createWidget = () => {
+          if (!window.twttr?.widgets || !containerRef.current) {
+            clearTimeout(fallbackTimer); setWidgetState("failed"); return;
+          }
+          window.twttr.widgets.createTimeline(
+            { sourceType: "profile", screenName: handle },
+            containerRef.current,
+            { tweetLimit: 5, chrome: "noheader nofooter noborders transparent", theme: "light", width: "100%" }
+          ).then(() => { clearTimeout(fallbackTimer); setWidgetState("ok"); })
+           .catch(() => { clearTimeout(fallbackTimer); setWidgetState("failed"); });
+        };
+
+        if (!window.twttr) {
+          const existing = document.getElementById("twitter-wjs");
+          if (!existing) {
+            const s = document.createElement("script");
+            s.id = "twitter-wjs"; s.src = "https://platform.twitter.com/widgets.js"; s.async = true;
+            s.onload = createWidget;
+            s.onerror = () => { clearTimeout(fallbackTimer); setWidgetState("failed"); };
+            document.head.appendChild(s);
+          } else {
+            createWidget();
+          }
+        } else {
+          createWidget();
+        }
+        return () => clearTimeout(fallbackTimer);
+      }, [handle]);
+
+      if (!handle) return null;
+      return (
+        <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
+          boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+            <span style={{ fontSize:18 }}>𝕏</span>
+            <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a" }}>Latest Posts</h3>
+            <a href={`https://x.com/${handle}`} target="_blank" rel="noreferrer"
+              style={{ marginLeft:"auto", fontSize:11, color:"#60a5fa", textDecoration:"none", fontWeight:600 }}>
+              @{handle} ↗
+            </a>
+          </div>
+
+          {/* Fallback card — shown when widget can't render (X restriction) */}
+          {widgetState === "failed" ? (
+            <div style={{ background:"#f8fbff", borderRadius:14, padding:"20px", textAlign:"center",
+              border:"1px dashed #dbeafe" }}>
+              <p style={{ color:"#93c5fd", fontSize:12, marginBottom:14 }}>
+                X doesn't allow embedded posts here.
+              </p>
+              <a href={`https://x.com/${handle}`} target="_blank" rel="noreferrer"
+                style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 20px",
+                  background:"#000", color:"white", borderRadius:20, fontSize:12, fontWeight:700, textDecoration:"none" }}>
+                <span style={{ fontSize:14 }}>𝕏</span> View @{handle} on X
+              </a>
+            </div>
+          ) : (
+            <div ref={containerRef} style={{ minHeight:80 }}>
+              {widgetState === "loading" && <p style={{ color:"#93c5fd", fontSize:13 }}>Loading posts…</p>}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── YouTube — GAMETIME HIGHLIGHTS search → direct link ───────────────────────
+    // Search without a channelId filter — "GAMETIME HIGHLIGHTS" in the query is
+    // enough for YouTube's ranking to surface that channel's video at #1.
+    const YT_KEY = "AIzaSyAaUCsLHh-Md-A505oS261I_wC8OXF1Q1Q";
+
+    async function searchGametimeHighlight(game, date) {
+      try {
+        const d   = new Date(date + "T12:00:00");
+        const mon = d.toLocaleDateString("en-US", { month:"short" });
+        const day = d.getDate();
+        const yr  = d.getFullYear();
+        // Exact channel name in query ensures the right channel surfaces first
+        const q = `"GAMETIME HIGHLIGHTS" ${game.visitor.name} vs ${game.home.name} ${mon} ${day} ${yr}`;
+        const params = new URLSearchParams({
+          part: "snippet", q, type: "video", order: "relevance",
+          maxResults: "5", key: YT_KEY,
+        });
+        const r = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+        if (!r.ok) return null;
+        const data = await r.json();
+        // Pick the first result whose title contains "GAMETIME HIGHLIGHTS" (case-insensitive)
+        const items = data.items ?? [];
+        const match = items.find(v =>
+          (v.snippet?.channelTitle ?? "").toLowerCase().includes("gametime highlights") ||
+          (v.snippet?.title       ?? "").toLowerCase().includes("gametime highlights")
+        ) ?? items[0]; // fall back to top result if none match by name
+        return match?.id?.videoId ?? null;
+      } catch { return null; }
+    }
+
+    // ── HighlightsButton — searches GAMETIME HIGHLIGHTS and opens on YouTube ───────
+    function HighlightsButton({ game, date, style: extraStyle = {} }) {
+      const [busy, setBusy] = useState(false);
+      const handleClick = async () => {
+        setBusy(true);
+        const videoId = await searchGametimeHighlight(game, date);
+        setBusy(false);
+        const fallback = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+          `${game.visitor.name} vs ${game.home.name} GAMETIME HIGHLIGHTS ${date}`
+        )}`;
+        window.open(videoId ? `https://youtu.be/${videoId}` : fallback, "_blank");
+      };
+      return (
+        <button
+          onClick={handleClick}
+          disabled={busy}
+          style={{ width:"100%", padding:"9px 12px", borderRadius:12,
+            background: busy ? "#f5f5f5" : "#fff1f2",
+            border:`1px solid ${busy ? "#e5e5e5" : "#fecaca"}`,
+            color: busy ? "#aaa" : "#dc2626",
+            fontSize:11, fontWeight:700, letterSpacing:"0.04em",
+            transition:"all 0.15s", ...extraStyle }}
+          onMouseEnter={e => { if (!busy) { e.currentTarget.style.background="#fee2e2"; e.currentTarget.style.borderColor="#fca5a5"; }}}
+          onMouseLeave={e => { if (!busy) { e.currentTarget.style.background="#fff1f2"; e.currentTarget.style.borderColor="#fecaca"; }}}>
+          {busy ? "🔍 Searching…" : "🎬 Watch Highlights ↗"}
+        </button>
+      );
+    }
+
+    // ── Spinner ──────────────────────────────────────────────────────────────────
+    function Spinner({ full }) {
+      return (
+        <div style={{ display:"flex", justifyContent:"center", padding:full?"80px 0":"40px 0",
+          gridColumn:full?"1/-1":undefined }}>
+          <div style={{ width:38, height:38, border:"4px solid #dbeafe", borderTopColor:"#3b82f6",
+            borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
+        </div>
+      );
+    }
+
+    // ── BoxScoreTable (with player photos) ───────────────────────────────────────
+    function BoxScoreTable({ side }) {
+      const players = side.players ?? [];
+      if (!players.length) return null;
+      return (
+        <div style={{ marginBottom:20 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 4px", marginBottom:8 }}>
+            <TeamLogo abbr={side.abbreviation} size={22} />
+            <span style={{ fontWeight:700, color:"#1e3a8a", fontSize:13 }}>{side.city} {side.name}</span>
+            <span style={{ marginLeft:"auto", fontWeight:900, color:"#1d4ed8", fontSize:15 }}>{side.score}</span>
+          </div>
+          <div style={{ overflowX:"auto", borderRadius:12, border:"1px solid #dbeafe" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+              <thead>
+                <tr style={{ background:"#f0f6ff" }}>
+                  <th style={{ textAlign:"left", padding:"7px 12px", fontWeight:600, color:"#60a5fa", whiteSpace:"nowrap" }}>Player</th>
+                  {["MIN","PTS","REB","AST","STL","BLK","FG","3PT","FT","+/-"].map(h => (
+                    <th key={h} style={{ padding:"7px 6px", fontWeight:600, color:"#60a5fa", textAlign:"center", whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((p, i) => {
+                  const pl = p.player ?? {}, pm = p.plus_minus;
+                  return (
+                    <tr key={pl.id ?? i} style={{ background:i%2===0?"white":"#f8fbff", borderBottom:"1px solid #f0f7ff" }}>
+                      <td style={{ padding:"6px 12px", whiteSpace:"nowrap" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <PlayerPhoto player={pl} size={28} />
+                          <span style={{ fontWeight:500, color:"#1e3a8a" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#93c5fd" }}>{p.min??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", fontWeight:800, color:"#1e3a8a" }}>{p.pts??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#3b82f6" }}>{p.reb??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#3b82f6" }}>{p.ast??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.stl??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.blk??"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.fgm!=null?`${p.fgm}/${p.fga}`:"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.fg3m!=null?`${p.fg3m}/${p.fg3a}`:"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.ftm!=null?`${p.ftm}/${p.fta}`:"—"}</td>
+                      <td style={{ padding:"7px 6px", textAlign:"center", fontWeight:700,
+                        color:pm>0?"#16a34a":pm<0?"#ef4444":"#93c5fd" }}>
+                        {pm!=null?(pm>0?`+${pm}`:pm):"—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ── BoxScoreModal ────────────────────────────────────────────────────────────
+    function BoxScoreModal({ game, onClose }) {
+      useEffect(() => {
+        const h = e => { if (e.key === "Escape") onClose(); };
+        document.addEventListener("keydown", h);
+        return () => document.removeEventListener("keydown", h);
+      }, []);
+      return (
+        <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:200,
+          background:"rgba(0,0,0,0.35)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24,
+            width:"100%", maxWidth:820, maxHeight:"90vh", overflowY:"auto",
+            boxShadow:"0 30px 80px rgba(59,130,246,0.3)", padding:28 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <TeamLogo abbr={game.visitor.abbreviation} size={38} />
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:26, fontWeight:900, color:"#1e3a8a" }}>{game.visitor.score}</span>
+                    <span style={{ color:"#bfdbfe", fontSize:22, fontWeight:200 }}>–</span>
+                    <span style={{ fontSize:26, fontWeight:900, color:"#1e3a8a" }}>{game.home.score}</span>
+                  </div>
+                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em",
+                    background:game.status==="Final"?"#dbeafe":"#fef3c7",
+                    color:game.status==="Final"?"#1d4ed8":"#92400e",
+                    padding:"2px 10px", borderRadius:20, display:"inline-block", marginTop:4 }}>
+                    {game.status==="Final"?"FINAL":(game.status??"—")}
+                  </span>
+                </div>
+                <TeamLogo abbr={game.home.abbreviation} size={38} />
+              </div>
+              <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%",
+                border:"1px solid #dbeafe", background:"#f0f6ff", color:"#60a5fa", fontSize:14, fontWeight:700,
+                display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+            <BoxScoreTable side={game.visitor} />
+            <BoxScoreTable side={game.home} />
+          </div>
+        </div>
+      );
+    }
+
+    // ── GameCard ─────────────────────────────────────────────────────────────────
+    function GameCard({ game, delay, spoilerMode, date }) {
+      const [modal, setModal] = useState(false);
+      const homeWon    = (game.home.score ?? 0) > (game.visitor.score ?? 0);
+      const visitorWon = (game.visitor.score ?? 0) > (game.home.score ?? 0);
+      const winningTeam = homeWon ? game.home : visitorWon ? game.visitor : null;
+      const star = winningTeam ? byPts(winningTeam.players ?? [])[0] ?? null : null;
+      const allPlayers = [...(game.home.players??[]), ...(game.visitor.players??[])];
+      const hasStats   = allPlayers.some(p => p.pts != null);
+
+      return (
+        <>
+          <div className="card-anim" style={{ background:"white", borderRadius:20,
+            border:"1px solid #dbeafe", boxShadow:"0 2px 18px rgba(59,130,246,0.08)",
+            overflow:"hidden", display:"flex", flexDirection:"column",
+            animationDelay:`${delay*60}ms` }}>
+
+            {/* Score */}
+            <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:"20px 14px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center" }}>
+                <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+                  opacity:!spoilerMode&&homeWon?0.35:1, transition:"opacity 0.3s" }}>
+                  <TeamLogo abbr={game.visitor.abbreviation} size={52} />
+                  <span style={{ fontSize:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{game.visitor.abbreviation}</span>
+                  <span style={{ fontSize:40, fontWeight:900, lineHeight:1,
+                    filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
+                    color:spoilerMode?"#93c5fd":homeWon?"#93c5fd":"#1e3a8a" }}>
+                    {game.visitor.score??"—"}
+                  </span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"0 8px", gap:8 }}>
+                  <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em", padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap",
+                    background:spoilerMode?"#f0f6ff":game.status==="Final"?"#dbeafe":"#fef3c7",
+                    color:spoilerMode?"#93c5fd":game.status==="Final"?"#1d4ed8":"#92400e" }}>
+                    {spoilerMode?"VS":game.status==="Final"?"FINAL":(game.status??"TBD")}
+                  </span>
+                  <span style={{ color:"#bfdbfe", fontSize:22, fontWeight:200 }}>·</span>
+                </div>
+                <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+                  opacity:!spoilerMode&&visitorWon?0.35:1, transition:"opacity 0.3s" }}>
+                  <TeamLogo abbr={game.home.abbreviation} size={52} />
+                  <span style={{ fontSize:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{game.home.abbreviation}</span>
+                  <span style={{ fontSize:40, fontWeight:900, lineHeight:1,
+                    filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
+                    color:spoilerMode?"#93c5fd":homeWon?"#1e3a8a":"#93c5fd" }}>
+                    {game.home.score??"—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Player of the Game (winning team, with photo) */}
+            {!spoilerMode && star?.player && star.pts != null && (
+              <div style={{ padding:"10px 14px", background:"#fffbeb",
+                borderTop:"1px solid #fde68a", borderBottom:"1px solid #f0f7ff",
+                display:"flex", alignItems:"center", gap:12 }}>
+                <PlayerPhoto player={star.player} size={48} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:9, fontWeight:700, color:"#b45309", textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:2 }}>
+                    🏆 Player of the Game · {winningTeam.abbreviation}
+                  </p>
+                  <p style={{ fontSize:13, fontWeight:700, color:"#78350f", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {star.player.first_name} {star.player.last_name}
+                  </p>
+                  <p style={{ fontSize:10, color:"#b45309", marginTop:1 }}>
+                    {[star.reb&&`${star.reb} reb`, star.ast&&`${star.ast} ast`, star.stl&&`${star.stl} stl`].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                <div style={{ flexShrink:0, textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:900, color:"#f59e0b", lineHeight:1 }}>{star.pts}</div>
+                  <div style={{ fontSize:9, color:"#d97706", fontWeight:700 }}>PTS</div>
+                </div>
+              </div>
+            )}
+
+            {/* Mini stats */}
+            {!spoilerMode && hasStats && (
+              <div style={{ borderTop:"1px solid #f0f7ff" }}>
+                {[game.visitor, game.home].map((side, si) => {
+                  const top = (side.players ?? []).slice(0, 4);
+                  if (!top.length) return null;
+                  return (
+                    <div key={si} style={{ borderBottom:si===0?"1px solid #f0f7ff":"none" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px 3px",
+                        background:si===0?"#f8fbff":"#f5f8ff" }}>
+                        <TeamLogo abbr={side.abbreviation} size={16} />
+                        <span style={{ fontSize:10, fontWeight:800, color:"#3b82f6", letterSpacing:"0.06em" }}>{side.abbreviation}</span>
+                        <span style={{ marginLeft:"auto", fontSize:10, fontWeight:900, color:"#1e3a8a" }}>{side.score}</span>
+                      </div>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                        <thead>
+                          <tr style={{ background:"#f0f6ff" }}>
+                            <th style={{ textAlign:"left", padding:"4px 12px", fontWeight:600, color:"#93c5fd", fontSize:10 }}>Player</th>
+                            {["PTS","REB","AST"].map(h => <th key={h} style={{ padding:"4px 8px", textAlign:"center", fontWeight:600, color:"#93c5fd", fontSize:10 }}>{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {top.map((p, i) => {
+                            const pl = p.player ?? {};
+                            return (
+                              <tr key={pl.id??i} style={{ background:i%2===0?"white":"#f8fbff", borderBottom:"1px solid #f0f7ff" }}>
+                                <td style={{ padding:"5px 12px" }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                                    <PlayerPhoto player={pl} size={22} />
+                                    <span style={{ color:"#1e3a8a", fontWeight:500, whiteSpace:"nowrap" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding:"5px 8px", textAlign:"center", fontWeight:800, color:"#1e3a8a" }}>{p.pts??"—"}</td>
+                                <td style={{ padding:"5px 8px", textAlign:"center", color:"#3b82f6" }}>{p.reb??"—"}</td>
+                                <td style={{ padding:"5px 8px", textAlign:"center", color:"#3b82f6" }}>{p.ast??"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div style={{ padding:"10px 12px", marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+              {spoilerMode ? (
+                <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"5px 0" }}>🙈 Spoiler mode on</p>
+              ) : (
+                <>
+                  {hasStats ? (
+                    <button onClick={() => setModal(true)} style={{ width:"100%", padding:"9px 12px",
+                      borderRadius:12, background:"#eff6ff", border:"1px solid #bfdbfe",
+                      color:"#2563eb", fontSize:11, fontWeight:700, letterSpacing:"0.04em" }}
+                      onMouseEnter={e => e.currentTarget.style.background="#dbeafe"}
+                      onMouseLeave={e => e.currentTarget.style.background="#eff6ff"}>
+                      Full Box Score →
+                    </button>
+                  ) : (
+                    <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"2px 0" }}>Full stats require GOAT / ALL-STAR tier</p>
+                  )}
+                  {game.status === "Final" && (
+                    <HighlightsButton game={game} date={date} />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          {modal && <BoxScoreModal game={game} onClose={() => setModal(false)} />}
+        </>
+      );
+    }
+
+    // ── Player Detail View ────────────────────────────────────────────────────────
+    function PlayerView({ player: initialPlayer, onBack }) {
+      const [player, setPlayer] = useState(initialPlayer);
+      const [avg,   setAvg]   = useState(undefined); // undefined=loading, null=no data
+      const [games, setGames] = useState(undefined);
+      const [odds,  setOdds]  = useState(undefined);
+
+      useEffect(() => {
+        setPlayer(initialPlayer);
+        setAvg(undefined); setGames(undefined); setOdds(undefined);
+        fetchPlayerStats(initialPlayer.id).then(({ avg, lastGames }) => {
+          setAvg(avg ?? null);
+          setGames(lastGames);
+        });
+        fetchKalshiOdds(initialPlayer.first_name, initialPlayer.last_name).then(setOdds);
+      }, [initialPlayer.id]);
+
+      const pct = v => v != null ? `${(v * 100).toFixed(1)}%` : "—";
+      const statFmt = v => v != null ? (+v).toFixed(1) : "—";
+
+      // Momentum trend
+      const trend = (() => {
+        if (!games?.length || avg == null) return null;
+        const avgPts = avg.pts ?? 0;
+        const above = games.filter(g => (g.pts ?? 0) >= avgPts).length;
+        if (above >= 4) return { label:"🔥 On Fire", color:"#f59e0b", bg:"#fffbeb" };
+        if (above <= 1) return { label:"❄️ Cold Stretch", color:"#60a5fa", bg:"#eff6ff" };
+        return { label:"→ Steady", color:"#22c55e", bg:"#f0fdf4" };
+      })();
+
+      const AWARD_COLOR = { mvp:"#f59e0b", mip:"#22c55e", defensive:"#3b82f6", rookie:"#a855f7", "all-nba":"#ec4899", default:"#64748b" };
+      function awardColor(q) {
+        q = q.toLowerCase();
+        for (const [k,v] of Object.entries(AWARD_COLOR)) { if (q.includes(k)) return v; }
+        return AWARD_COLOR.default;
+      }
+
+      return (
+        <div>
+          {/* Header */}
+          <div style={{ background:"white", borderBottom:"1px solid #dbeafe" }}>
+            <div style={{ maxWidth:900, margin:"0 auto", padding:"18px 24px" }}>
+              <button onClick={onBack} style={{ background:"#f0f6ff", border:"1px solid #dbeafe",
+                borderRadius:10, padding:"8px 14px", color:"#3b82f6", fontWeight:700, fontSize:13, marginBottom:18 }}>
+                ← Back
+              </button>
+              <div style={{ display:"flex", alignItems:"center", gap:20 }}>
+                <PlayerPhoto player={player} size={80} />
+                <div>
+                  <p style={{ fontSize:12, color:"#60a5fa", fontWeight:600 }}>
+                    {player.team?.abbreviation && <><TeamLogo abbr={player.team.abbreviation} size={18} style={{verticalAlign:"middle"}} />{" "}</>}
+                    {player.team?.full_name ?? player.team?.abbreviation}
+                    {player.position ? ` · ${player.position}` : ""}
+                  </p>
+                  <h2 style={{ fontSize:26, fontWeight:900, color:"#1e3a8a", lineHeight:1.1 }}>
+                    {player.first_name} {player.last_name}
+                  </h2>
+                  {player.jersey_number && <p style={{ fontSize:12, color:"#93c5fd", marginTop:2 }}>#{player.jersey_number}</p>}
+                </div>
+                {player.team?.abbreviation && (
+                  <div style={{ marginLeft:"auto" }}>
+                    <TeamLogo abbr={player.team.abbreviation} size={64} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:900, margin:"0 auto", padding:"24px", display:"flex", flexDirection:"column", gap:20 }}>
+
+            {/* Season Averages */}
+            <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
+              boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
+              <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a", marginBottom:16 }}>📊 Season Averages — {SEASON}-{(SEASON+1).toString().slice(2)}</h3>
+              {avg === undefined ? <Spinner /> : avg === null ? (
+                <p style={{ color:"#93c5fd", fontSize:13 }}>No season data available</p>
+              ) : (
+                <>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))", gap:10, marginBottom:14 }}>
+                    {[
+                      { label:"PTS",  value: statFmt(avg.pts),  highlight:true },
+                      { label:"REB",  value: statFmt(avg.reb) },
+                      { label:"AST",  value: statFmt(avg.ast) },
+                      { label:"STL",  value: statFmt(avg.stl) },
+                      { label:"BLK",  value: statFmt(avg.blk) },
+                      { label:"MIN",  value: statFmt(avg.min) },
+                    ].map(s => (
+                      <div key={s.label} style={{ background:s.highlight?"#eff6ff":"#f8fbff", borderRadius:12,
+                        padding:"12px 8px", textAlign:"center", border:"1px solid #dbeafe" }}>
+                        <div style={{ fontSize:22, fontWeight:900, color:s.highlight?"#1d4ed8":"#1e3a8a" }}>{s.value}</div>
+                        <div style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.06em", marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                    {[
+                      { label:"FG%",  value: pct(avg.fg_pct)  },
+                      { label:"3P%",  value: pct(avg.fg3_pct) },
+                      { label:"FT%",  value: pct(avg.ft_pct)  },
+                    ].map(s => (
+                      <div key={s.label} style={{ background:"#f0f6ff", borderRadius:10, padding:"8px 16px",
+                        display:"flex", gap:8, alignItems:"center", border:"1px solid #dbeafe" }}>
+                        <span style={{ fontSize:13, fontWeight:800, color:"#1e3a8a" }}>{s.value}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:"#60a5fa" }}>{s.label}</span>
+                      </div>
+                    ))}
+                    {avg.games_played && (
+                      <div style={{ background:"#f0f6ff", borderRadius:10, padding:"8px 16px",
+                        display:"flex", gap:8, alignItems:"center", border:"1px solid #dbeafe" }}>
+                        <span style={{ fontSize:13, fontWeight:800, color:"#1e3a8a" }}>{avg.games_played}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:"#60a5fa" }}>GP</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Momentum — Last 5 Games */}
+            <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
+              boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a" }}>📈 Momentum — Last 5 Games</h3>
+                {trend && (
+                  <span style={{ fontSize:11, fontWeight:700, padding:"4px 12px", borderRadius:20,
+                    background:trend.bg, color:trend.color, border:`1px solid ${trend.color}30` }}>
+                    {trend.label}
+                  </span>
+                )}
+              </div>
+              {games === undefined ? <Spinner /> : !games?.length ? (
+                <p style={{ color:"#93c5fd", fontSize:13 }}>No recent game data available</p>
+              ) : (
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                    <thead>
+                      <tr style={{ background:"#f0f6ff" }}>
+                        {["Date","Opponent","Result","MIN","PTS","REB","AST","STL","BLK","FG","3PT","+/-"].map(h => (
+                          <th key={h} style={{ padding:"7px 10px", fontWeight:600, color:"#60a5fa",
+                            textAlign: h==="Date"||h==="Opponent"||h==="Result" ? "left" : "center", whiteSpace:"nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {games.map((g, i) => {
+                        const date = g.game?.date ? fmtDate(g.game.date) : "—";
+                        const opp = g.team?.id === g.game?.home_team_id ? g.game?.visitor_team?.abbreviation : g.game?.home_team?.abbreviation;
+                        const homeScore = g.game?.home_team_score, visScore = g.game?.visitor_team_score;
+                        const weAreHome = g.team?.id === g.game?.home_team_id;
+                        const ourScore = weAreHome ? homeScore : visScore;
+                        const theirScore = weAreHome ? visScore : homeScore;
+                        const won = ourScore != null && theirScore != null ? ourScore > theirScore : null;
+                        const aboveAvg = avg && g.pts != null && g.pts >= (avg.pts ?? 0);
+                        const pm = g.plus_minus;
+                        return (
+                          <tr key={i} style={{ background: aboveAvg ? "rgba(34,197,94,0.04)" : i%2===0?"white":"#f8fbff",
+                            borderBottom:"1px solid #f0f7ff" }}>
+                            <td style={{ padding:"7px 10px", color:"#60a5fa", whiteSpace:"nowrap" }}>{date}</td>
+                            <td style={{ padding:"7px 10px", fontWeight:600, color:"#1e3a8a", whiteSpace:"nowrap" }}>
+                              {opp ? <span style={{ display:"flex", alignItems:"center", gap:6 }}><TeamLogo abbr={opp} size={18} />{opp}</span> : "—"}
+                            </td>
+                            <td style={{ padding:"7px 10px", whiteSpace:"nowrap" }}>
+                              {won != null ? (
+                                <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20,
+                                  background:won?"#f0fdf4":"#fff1f2", color:won?"#15803d":"#dc2626" }}>
+                                  {won?"W":"L"} {ourScore}–{theirScore}
+                                </span>
+                              ) : "—"}
+                            </td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#93c5fd" }}>{g.min??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", fontWeight:800,
+                              color: aboveAvg ? "#1d4ed8" : "#64748b" }}>{g.pts??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#3b82f6" }}>{g.reb??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#3b82f6" }}>{g.ast??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#60a5fa" }}>{g.stl??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#60a5fa" }}>{g.blk??"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#2563eb" }}>{g.fgm!=null?`${g.fgm}/${g.fga}`:"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", color:"#2563eb" }}>{g.fg3m!=null?`${g.fg3m}/${g.fg3a}`:"—"}</td>
+                            <td style={{ padding:"7px 10px", textAlign:"center", fontWeight:700,
+                              color:pm>0?"#16a34a":pm<0?"#ef4444":"#93c5fd" }}>
+                              {pm!=null?(pm>0?`+${pm}`:pm):"—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Award Odds */}
+            <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
+              boxShadow:"0 2px 14px rgba(59,130,246,0.07)", padding:"20px 24px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                <h3 style={{ fontSize:14, fontWeight:800, color:"#1e3a8a" }}>🎯 Award Odds</h3>
+                <a href="https://kalshi.com/markets" target="_blank" rel="noreferrer"
+                  style={{ fontSize:10, color:"#60a5fa", textDecoration:"none", fontWeight:600 }}>
+                  via Kalshi ↗
+                </a>
+              </div>
+              {odds === undefined ? <Spinner /> : !odds || !odds.length ? (
+                <p style={{ color:"#93c5fd", fontSize:13 }}>
+                  No active award markets found.{" "}
+                  <a href={`https://kalshi.com/markets?search=${encodeURIComponent(player.first_name+" "+player.last_name)}`}
+                    target="_blank" rel="noreferrer" style={{ color:"#3b82f6" }}>Search Kalshi ↗</a>
+                </p>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {odds.map((o, i) => {
+                    const pct = Math.round(o.prob * 100);
+                    const col = awardColor(o.question);
+                    return (
+                      <a key={i} href={o.url} target="_blank" rel="noreferrer"
+                        style={{ textDecoration:"none", display:"block",
+                          background:"#f8fbff", borderRadius:14, padding:"12px 16px",
+                          border:"1px solid #dbeafe", transition:"all 0.15s" }}
+                        onMouseEnter={e => { e.currentTarget.style.background="#eff6ff"; e.currentTarget.style.borderColor="#bfdbfe"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background="#f8fbff"; e.currentTarget.style.borderColor="#dbeafe"; }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:"#1e3a8a", flex:1, paddingRight:12 }}>{o.question}</span>
+                          <span style={{ fontSize:18, fontWeight:900, color:col, flexShrink:0 }}>{pct}%</span>
+                        </div>
+                        <div style={{ background:"#e2e8f0", borderRadius:20, height:6, overflow:"hidden" }}>
+                          <div style={{ width:`${pct}%`, height:"100%", borderRadius:20,
+                            background:`linear-gradient(90deg, ${col}80, ${col})`,
+                            transition:"width 0.8s ease" }} />
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Team X / Twitter Feed */}
+            {player.team?.abbreviation && TEAM_TWITTER[player.team.abbreviation] && (
+              <TwitterFeed handle={TEAM_TWITTER[player.team.abbreviation]} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Top Performers ───────────────────────────────────────────────────────────
+    function TopPerformers({ games, spoilerMode }) {
+      // Flatten all players from all finished games that have stats
+      const allPlayers = games.flatMap(g => [
+        ...(g.home.players    ?? []).map(p => ({ ...p, teamAbbr: g.home.abbreviation })),
+        ...(g.visitor.players ?? []).map(p => ({ ...p, teamAbbr: g.visitor.abbreviation })),
+      ]).filter(p => p.pts != null && p.player);
+
+      if (allPlayers.length === 0) return null;
+
+      const top5 = (key) =>
+        [...allPlayers]
+          .filter(p => (p[key] ?? 0) > 0)
+          .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
+          .slice(0, 5);
+
+      const scorers    = top5("pts");
+      const assisters  = top5("ast");
+      const rebounders = top5("reb");
+
+      // Top 5 by combined PTS+AST+REB, showing each stat individually
+      const allRounders = [...allPlayers]
+        .filter(p => (p.pts ?? 0) + (p.ast ?? 0) + (p.reb ?? 0) > 0)
+        .sort((a, b) =>
+          ((b.pts ?? 0) + (b.ast ?? 0) + (b.reb ?? 0)) -
+          ((a.pts ?? 0) + (a.ast ?? 0) + (a.reb ?? 0))
+        )
+        .slice(0, 5);
+
+      const medals = ["🥇", "🥈", "🥉", "4", "5"];
+      const rankStyle = i => ({ fontSize: i === 0 ? 14 : 12, opacity: 1 - i * 0.12 });
+
+      // Reusable avatar: player photo with tiny team logo badge
+      const PlayerAvatar = ({ player, teamAbbr, photoSize = 32 }) => (
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <PlayerPhoto player={player} size={photoSize} />
+          <div style={{ position:"absolute", bottom:-2, right:-2,
+            width:14, height:14, borderRadius:"50%", overflow:"hidden",
+            border:"1px solid white", background:"white" }}>
+            <img src={logoUrl(teamAbbr)} alt={teamAbbr}
+              style={{ width:"100%", height:"100%", objectFit:"contain" }} />
+          </div>
+        </div>
+      );
+
+      // Single-stat section (pts / ast / reb)
+      const Section = ({ title, color, icon, players, statKey }) => (
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+            <span style={{ fontSize:18 }}>{icon}</span>
+            <span style={{ fontSize:11, fontWeight:800, color, letterSpacing:"0.06em", textTransform:"uppercase" }}>{title}</span>
+          </div>
+          {players.map((p, i) => {
+            const name = `${p.player.first_name?.[0]}. ${p.player.last_name}`;
+            return (
+              <div key={p.player?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8,
+                padding:"6px 0", borderBottom: i < players.length-1 ? "1px solid #f0f6ff" : "none",
+                ...rankStyle(i) }}>
+                <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
+                  color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
+                  {i < 3 ? medals[i] : `${i+1}.`}
+                </span>
+                <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={30} />
+                <span style={{ flex:1, fontSize:12, fontWeight: i===0 ? 800 : 600,
+                  color:"#1e3a8a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {name}
+                </span>
+                {spoilerMode ? (
+                  <span style={{ fontSize:11, color:"#bfdbfe" }}>—</span>
+                ) : (
+                  <span style={{ fontSize: i===0 ? 15 : 13, fontWeight:900, color,
+                    minWidth:26, textAlign:"right", flexShrink:0 }}>
+                    {p[statKey]}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      // All-around section — ranked by PTS+AST+REB, each stat shown separately
+      const AllAroundSection = () => (
+        <div style={{ flex:"0 0 auto", width:270 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+            <span style={{ fontSize:18 }}>🌟</span>
+            <span style={{ fontSize:11, fontWeight:800, color:"#b45309",
+              letterSpacing:"0.06em", textTransform:"uppercase" }}>All-Around</span>
+            <span style={{ fontSize:10, color:"#d97706", fontWeight:600, marginLeft:2 }}>PTS · AST · REB</span>
+          </div>
+          {allRounders.map((p, i) => {
+            const name = `${p.player.first_name?.[0]}. ${p.player.last_name}`;
+            return (
+              <div key={p.player?.id ?? i} style={{ display:"flex", alignItems:"center", gap:8,
+                padding:"6px 0", borderBottom: i < allRounders.length-1 ? "1px solid #fef3c7" : "none",
+                ...rankStyle(i) }}>
+                <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
+                  color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
+                  {i < 3 ? medals[i] : `${i+1}.`}
+                </span>
+                <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={30} />
+                <span style={{ flex:1, fontSize:12, fontWeight: i===0 ? 800 : 600,
+                  color:"#1e3a8a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {name}
+                </span>
+                {spoilerMode ? (
+                  <span style={{ fontSize:11, color:"#bfdbfe" }}>—</span>
+                ) : (
+                  <div style={{ display:"flex", gap:3, alignItems:"baseline", flexShrink:0 }}>
+                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#1d4ed8" }}>{p.pts ?? 0}</span>
+                    <span style={{ fontSize:9, color:"#93c5fd", fontWeight:600 }}>p</span>
+                    <span style={{ fontSize:9, color:"#cbd5e1" }}>·</span>
+                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#0891b2" }}>{p.ast ?? 0}</span>
+                    <span style={{ fontSize:9, color:"#7dd3fc", fontWeight:600 }}>a</span>
+                    <span style={{ fontSize:9, color:"#cbd5e1" }}>·</span>
+                    <span style={{ fontSize: i===0 ? 13 : 12, fontWeight:900, color:"#7c3aed" }}>{p.reb ?? 0}</span>
+                    <span style={{ fontSize:9, color:"#c4b5fd", fontWeight:600 }}>r</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      return (
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:"0 24px 0" }}>
+          <div style={{ background:"white", borderRadius:20, border:"1px solid #dbeafe",
+            padding:"18px 24px", marginBottom:0,
+            boxShadow:"0 2px 12px rgba(30,58,138,0.06)" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#60a5fa", letterSpacing:"0.08em",
+              textTransform:"uppercase", marginBottom:14 }}>
+              ⭐ Top Performers
+            </div>
+            <div style={{ display:"flex", gap:28, flexWrap:"wrap" }}>
+              <Section title="Points"   color="#1d4ed8" icon="🏀" players={scorers}    statKey="pts" />
+              <div style={{ width:1, background:"#dbeafe", flexShrink:0 }} />
+              <Section title="Assists"  color="#0891b2" icon="🎯" players={assisters}  statKey="ast" />
+              <div style={{ width:1, background:"#dbeafe", flexShrink:0 }} />
+              <Section title="Rebounds" color="#7c3aed" icon="💪" players={rebounders} statKey="reb" />
+              <div style={{ width:1, background:"#fde68a", flexShrink:0 }} />
+              <AllAroundSection />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Home View ────────────────────────────────────────────────────────────────
+    function HomeView({ gameCache, loadDate, spoilerMode }) {
+      const [selected, setSelected] = useState(DATES[1]);
+      const [loading,  setLoading]  = useState(false);
+      const [error,    setError]    = useState(null);
+
+      useEffect(() => {
+        let cancelled = false;
+        async function go() {
+          if (gameCache[selected] !== undefined) return;
+          setLoading(true); setError(null);
+          const res = await loadDate(selected);
+          if (cancelled) return;
+          if (res?.errCode) setError(res.errCode === 401 ? "auth" : "network");
+          setLoading(false);
+        }
+        go();
+        return () => { cancelled = true; };
+      }, [selected]);
+
+      const games = gameCache[selected];
+      return (
+        <>
+          <div style={{ background:"white", borderBottom:"1px solid #dbeafe" }}>
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:"10px 24px 12px" }}>
+              <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }}>
+                {DATES.map(d => {
+                  const active = d === selected;
+                  return (
+                    <button key={d} onClick={() => setSelected(d)} style={{ flexShrink:0, minWidth:72,
+                      padding:"8px 14px", borderRadius:12, background:active?"#3b82f6":"#f0f6ff",
+                      color:active?"white":"#60a5fa", boxShadow:active?"0 2px 10px rgba(59,130,246,0.35)":"none",
+                      transition:"all 0.15s", outline:"none" }}>
+                      <div style={{ fontSize:12, fontWeight:800 }}>{dayLabel(d)}</div>
+                      <div style={{ fontSize:10, opacity:0.75, marginTop:1 }}>{fmtDate(d)}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {/* Top Performers — only when data is ready and games exist */}
+          {!loading && !error && games && games.length > 0 && (
+            <div style={{ paddingTop:20 }}>
+              <TopPerformers games={games} spoilerMode={spoilerMode} />
+            </div>
+          )}
+
+          {/* Games grid */}
+          <div style={{ maxWidth:1280, margin:"0 auto", padding:"20px 24px 24px",
+            display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16, alignItems:"start" }}>
+            {loading || !games ? <Spinner full />
+            : error ? (
+              <div style={{ gridColumn:"1/-1", background:"white", borderRadius:20,
+                border:"1px solid #dbeafe", padding:"60px 24px", textAlign:"center" }}>
+                <p style={{ fontSize:44, marginBottom:12 }}>⚠️</p>
+                <p style={{ fontWeight:700, color:"#1e3a8a", marginBottom:6 }}>
+                  {error==="auth"?"API key not authorised":"Couldn't reach the API"}
+                </p>
+                <p style={{ fontSize:13, color:"#93c5fd" }}>Check your plan at app.balldontlie.io</p>
+              </div>
+            ) : games.length === 0 ? (
+              <div style={{ gridColumn:"1/-1", background:"white", borderRadius:20,
+                border:"1px solid #dbeafe", padding:"70px 24px", textAlign:"center" }}>
+                <p style={{ fontSize:48, marginBottom:12 }}>😴</p>
+                <p style={{ fontWeight:700, color:"#1e3a8a" }}>No games on {fmtDate(selected)}</p>
+              </div>
+            ) : games.map((g, i) => <GameCard key={g.id} game={g} delay={i} spoilerMode={spoilerMode} date={selected} />)}
+          </div>
+        </>
+      );
+    }
+
+    // ── Favourites View ──────────────────────────────────────────────────────────
+    function FavoritesView({ favTeams, setFavTeams, favPlayers, setFavPlayers, onSelectTeam, onSelectPlayer }) {
+      const [tab,           setTab]          = useState(favPlayers.length > 0 ? "players" : "teams");
+      const [teamSearch,    setTeamSearch]    = useState("");
+      const [playerQuery,   setPlayerQuery]   = useState("");
+      const [playerResults, setPlayerResults] = useState([]);
+      const [searching,     setSearching]     = useState(false);
+      const searchTimer = useRef(null);
+
+      // Debounced player search
+      useEffect(() => {
+        clearTimeout(searchTimer.current);
+        if (!playerQuery.trim()) { setPlayerResults([]); return; }
+        searchTimer.current = setTimeout(async () => {
+          setSearching(true);
+          const res = await apiFetch(`/players?search=${encodeURIComponent(playerQuery)}&per_page=15`);
+          setSearching(false);
+          if (!res._err) setPlayerResults(res.data ?? []);
+        }, 400);
+      }, [playerQuery]);
+
+      const isFavTeam   = abbr => favTeams.some(f => f.abbreviation === abbr);
+      const isFavPlayer = id   => favPlayers.some(f => f.id === id);
+      const toggleTeam  = t => setFavTeams(p => isFavTeam(t.abbreviation) ? p.filter(f=>f.abbreviation!==t.abbreviation) : [...p,t]);
+      const togglePlayer = p => setFavPlayers(prev => isFavPlayer(p.id) ? prev.filter(f=>f.id!==p.id) : [...prev, p]);
+
+      const filteredTeams = ALL_TEAMS.filter(t =>
+        `${t.city} ${t.name} ${t.abbreviation}`.toLowerCase().includes(teamSearch.toLowerCase())
+      );
+
+      const TabBtn = ({ id, label }) => (
+        <button onClick={() => setTab(id)} style={{ padding:"8px 20px", borderRadius:20,
+          background:tab===id?"#3b82f6":"#f0f6ff", color:tab===id?"white":"#60a5fa",
+          fontSize:12, fontWeight:700, boxShadow:tab===id?"0 2px 8px rgba(59,130,246,0.3)":"none",
+          transition:"all 0.15s" }}>
+          {label}
+        </button>
+      );
+
+      return (
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:"28px 24px" }}>
+
+          {/* Favourited players strip */}
+          {favPlayers.length > 0 && (
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontSize:16, fontWeight:800, color:"#1e3a8a", marginBottom:14 }}>⭐ Your Players</h2>
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                {favPlayers.map(p => (
+                  <div key={p.id} onClick={() => onSelectPlayer(p)}
+                    style={{ cursor:"pointer", background:"white", borderRadius:18, padding:"16px 18px",
+                      border:"1px solid #dbeafe", boxShadow:"0 2px 12px rgba(59,130,246,0.08)",
+                      display:"flex", flexDirection:"column", alignItems:"center", gap:8, minWidth:100,
+                      transition:"all 0.2s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background="#eff6ff"; e.currentTarget.style.transform="translateY(-2px)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background="white"; e.currentTarget.style.transform="translateY(0)"; }}>
+                    <PlayerPhoto player={p} size={52} />
+                    <div style={{ textAlign:"center" }}>
+                      <p style={{ fontSize:12, fontWeight:800, color:"#1e3a8a" }}>{p.first_name} {p.last_name}</p>
+                      <p style={{ fontSize:10, color:"#60a5fa", fontWeight:600 }}>
+                        {p.team?.abbreviation}{p.position ? ` · ${p.position}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Favourited teams strip */}
+          {favTeams.length > 0 && (
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontSize:16, fontWeight:800, color:"#1e3a8a", marginBottom:14 }}>⭐ Your Teams</h2>
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                {favTeams.map(t => (
+                  <div key={t.abbreviation} onClick={() => onSelectTeam(t)}
+                    style={{ cursor:"pointer", background:"white", borderRadius:18, padding:"16px 20px",
+                      border:"1px solid #dbeafe", boxShadow:"0 2px 12px rgba(59,130,246,0.08)",
+                      display:"flex", flexDirection:"column", alignItems:"center", gap:8, minWidth:100,
+                      transition:"all 0.2s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background="#eff6ff"; e.currentTarget.style.transform="translateY(-2px)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background="white"; e.currentTarget.style.transform="translateY(0)"; }}>
+                    <TeamLogo abbr={t.abbreviation} size={52} />
+                    <div style={{ textAlign:"center" }}>
+                      <p style={{ fontSize:10, fontWeight:800, color:"#3b82f6", letterSpacing:"0.08em" }}>{t.abbreviation}</p>
+                      <p style={{ fontSize:12, fontWeight:700, color:"#1e3a8a" }}>{t.name}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search tabs */}
+          <div style={{ display:"flex", gap:8, marginBottom:18 }}>
+            <TabBtn id="players" label="🏃 Search Players" />
+            <TabBtn id="teams"   label="🏟 Search Teams" />
+          </div>
+
+          {/* Players search */}
+          {tab === "players" && (
+            <div>
+              <input type="text" placeholder="🔍  Search by player name…" value={playerQuery}
+                onChange={e => setPlayerQuery(e.target.value)}
+                style={{ width:"100%", maxWidth:400, padding:"10px 16px", borderRadius:12,
+                  border:"1px solid #dbeafe", background:"#f8fbff", fontSize:13,
+                  color:"#1e3a8a", outline:"none", marginBottom:14 }} />
+              {searching && <Spinner />}
+              {!searching && playerResults.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:10 }}>
+                  {playerResults.map(p => (
+                    <div key={p.id} style={{ background:"white", borderRadius:14, padding:"12px 14px",
+                      border:"1px solid #dbeafe", display:"flex", alignItems:"center", gap:12 }}>
+                      <PlayerPhoto player={p} size={40} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <p style={{ fontSize:13, fontWeight:800, color:"#1e3a8a" }}>{p.first_name} {p.last_name}</p>
+                        <p style={{ fontSize:11, color:"#60a5fa" }}>
+                          {p.team?.abbreviation ? <><TeamLogo abbr={p.team.abbreviation} size={14} />{" "}{p.team.abbreviation}</> : "Free agent"}
+                          {p.position ? ` · ${p.position}` : ""}
+                        </p>
+                      </div>
+                      <button onClick={() => togglePlayer(p)} style={{ background:"none", fontSize:22,
+                        lineHeight:1, padding:"4px", color:isFavPlayer(p.id)?"#f59e0b":"#dbeafe",
+                        transition:"color 0.2s, transform 0.15s" }}
+                        onMouseEnter={e => e.currentTarget.style.transform="scale(1.25)"}
+                        onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}
+                        title={isFavPlayer(p.id)?"Remove from favourites":"Add to favourites"}>★</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!searching && !playerResults.length && playerQuery.trim() && (
+                <p style={{ color:"#93c5fd", fontSize:13 }}>No players found for "{playerQuery}"</p>
+              )}
+            </div>
+          )}
+
+          {/* Teams search */}
+          {tab === "teams" && (
+            <div>
+              <input type="text" placeholder="🔍  Search teams…" value={teamSearch}
+                onChange={e => setTeamSearch(e.target.value)}
+                style={{ width:"100%", maxWidth:400, padding:"10px 16px", borderRadius:12,
+                  border:"1px solid #dbeafe", background:"#f8fbff", fontSize:13,
+                  color:"#1e3a8a", outline:"none", marginBottom:14 }} />
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
+                {filteredTeams.map(t => (
+                  <div key={t.abbreviation} style={{ background:"white", borderRadius:14, padding:"12px 14px",
+                    border:"1px solid #dbeafe", display:"flex", alignItems:"center", gap:12 }}>
+                    <TeamLogo abbr={t.abbreviation} size={36} />
+                    <div style={{ flex:1 }}>
+                      <p style={{ fontSize:11, fontWeight:600, color:"#60a5fa" }}>{t.city}</p>
+                      <p style={{ fontSize:13, fontWeight:800, color:"#1e3a8a" }}>{t.name}</p>
+                    </div>
+                    <button onClick={() => toggleTeam(t)} style={{ background:"none", fontSize:22,
+                      lineHeight:1, padding:"4px", color:isFavTeam(t.abbreviation)?"#f59e0b":"#dbeafe",
+                      transition:"color 0.2s, transform 0.15s" }}
+                      onMouseEnter={e => e.currentTarget.style.transform="scale(1.25)"}
+                      onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}
+                      title={isFavTeam(t.abbreviation)?"Remove from favourites":"Add to favourites"}>★</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Thin wrapper so TeamView can render a highlights button per game row
+    function TeamGameHighlightsBtn({ game }) {
+      return (
+        <div style={{ padding:"8px 24px 16px" }}>
+          <HighlightsButton game={game} date={game.date}
+            style={{ width:"auto", padding:"9px 20px" }} />
+        </div>
+      );
+    }
+
+    // ── Team View ────────────────────────────────────────────────────────────────
+    function TeamView({ team, gameCache, loadDate, onBack, spoilerMode }) {
+      const [loadingAll, setLoadingAll] = useState(true);
+
+      useEffect(() => {
+        let active = true;
+        Promise.all(DATES.map(d => loadDate(d))).then(() => { if (active) setLoadingAll(false); });
+        return () => { active = false; };
+      }, [team.abbreviation]);
+
+      const teamGames = DATES
+        .flatMap(d => (gameCache[d] ?? [])
+          .filter(g => g.home.abbreviation === team.abbreviation || g.visitor.abbreviation === team.abbreviation)
+          .map(g => ({ ...g, date: d }))
+        )
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      return (
+        <div>
+          <div style={{ background:"white", borderBottom:"1px solid #dbeafe" }}>
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:"16px 24px",
+              display:"flex", alignItems:"center", gap:16 }}>
+              <button onClick={onBack} style={{ background:"#f0f6ff", border:"1px solid #dbeafe",
+                borderRadius:10, padding:"8px 14px", color:"#3b82f6", fontWeight:700, fontSize:13 }}>← Back</button>
+              <TeamLogo abbr={team.abbreviation} size={44} />
+              <div>
+                <p style={{ fontSize:11, color:"#93c5fd", fontWeight:600 }}>{team.city}</p>
+                <h2 style={{ fontSize:20, fontWeight:900, color:"#1e3a8a" }}>{team.name}</h2>
+              </div>
+              <p style={{ marginLeft:"auto", fontSize:12, color:"#93c5fd" }}>Last 7 days</p>
+            </div>
+          </div>
+
+          {loadingAll && !teamGames.length ? <Spinner full />
+          : !teamGames.length ? (
+            <div style={{ textAlign:"center", padding:"80px 24px" }}>
+              <p style={{ fontSize:48, marginBottom:12 }}>📅</p>
+              <p style={{ fontWeight:700, color:"#1e3a8a" }}>No games in the last 7 days</p>
+            </div>
+          ) : (
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:"24px", display:"flex", flexDirection:"column", gap:28 }}>
+              {TEAM_TWITTER[team.abbreviation] && (
+                <TwitterFeed handle={TEAM_TWITTER[team.abbreviation]} />
+              )}
+              {teamGames.map((game, idx) => {
+                const isHome  = game.home.abbreviation === team.abbreviation;
+                const ourTeam = isHome ? game.home : game.visitor;
+                const oppTeam = isHome ? game.visitor : game.home;
+                const weWon   = (ourTeam.score??0) > (oppTeam.score??0);
+                const theyWon = (oppTeam.score??0) > (ourTeam.score??0);
+                const hasStats = [...(game.home.players??[]),...(game.visitor.players??[])].some(p=>p.pts!=null);
+                const wTeam = weWon?ourTeam:theyWon?oppTeam:null;
+                const potg  = wTeam ? byPts(wTeam.players??[])[0]??null : null;
+
+                return (
+                  <div key={game.id} className="card-anim" style={{ background:"white", borderRadius:20,
+                    border:"1px solid #dbeafe", boxShadow:"0 2px 18px rgba(59,130,246,0.08)", overflow:"hidden",
+                    animationDelay:`${idx*80}ms` }}>
+                    <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:"18px 24px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                        <span style={{ fontSize:12, color:"#60a5fa", fontWeight:600 }}>{dayLabel(game.date)} · {fmtDate(game.date)}</span>
+                        <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, letterSpacing:"0.07em",
+                          background:spoilerMode?"#f0f6ff":game.status==="Final"?"#dbeafe":"#fef3c7",
+                          color:spoilerMode?"#93c5fd":game.status==="Final"?"#1d4ed8":"#92400e" }}>
+                          {spoilerMode?"VS":game.status==="Final"?"FINAL":(game.status??"TBD")}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
+                          <TeamLogo abbr={ourTeam.abbreviation} size={50} />
+                          <div>
+                            <p style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.08em" }}>{isHome?"HOME":"AWAY"}</p>
+                            <p style={{ fontSize:15, fontWeight:800, color:"#1e3a8a" }}>{ourTeam.city} {ourTeam.name}</p>
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+                          <span style={{ fontSize:44, fontWeight:900, lineHeight:1,
+                            filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
+                            color:spoilerMode?"#93c5fd":weWon?"#1e3a8a":"#93c5fd" }}>{ourTeam.score??"—"}</span>
+                          <span style={{ color:"#bfdbfe", fontSize:24, fontWeight:200 }}>–</span>
+                          <span style={{ fontSize:44, fontWeight:900, lineHeight:1,
+                            filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
+                            color:spoilerMode?"#93c5fd":theyWon?"#1e3a8a":"#93c5fd" }}>{oppTeam.score??"—"}</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, justifyContent:"flex-end" }}>
+                          <div style={{ textAlign:"right" }}>
+                            <p style={{ fontSize:10, fontWeight:700, color:"#60a5fa", letterSpacing:"0.08em" }}>{isHome?"AWAY":"HOME"}</p>
+                            <p style={{ fontSize:15, fontWeight:800, color:"#1e3a8a" }}>{oppTeam.city} {oppTeam.name}</p>
+                          </div>
+                          <TeamLogo abbr={oppTeam.abbreviation} size={50} />
+                        </div>
+                      </div>
+                      {!spoilerMode && potg?.player && potg.pts != null && (
+                        <div style={{ marginTop:12, padding:"8px 14px", background:"rgba(255,251,235,0.95)",
+                          borderRadius:12, border:"1px solid #fde68a", display:"flex", alignItems:"center", gap:12 }}>
+                          <PlayerPhoto player={potg.player} size={36} />
+                          <div>
+                            <span style={{ fontSize:11, fontWeight:700, color:"#b45309" }}>🏆 Player of the Game · {wTeam.abbreviation}: </span>
+                            <span style={{ fontSize:11, fontWeight:800, color:"#78350f" }}>{potg.player.first_name} {potg.player.last_name}</span>
+                            <span style={{ fontSize:11, color:"#b45309" }}> · {potg.pts} pts{potg.reb?` · ${potg.reb} reb`:""}{potg.ast?` · ${potg.ast} ast`:""}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {!spoilerMode && hasStats ? (
+                      <div style={{ padding:"20px 24px" }}><BoxScoreTable side={game.visitor} /><BoxScoreTable side={game.home} /></div>
+                    ) : (
+                      <div style={{ padding:"14px 24px", textAlign:"center" }}>
+                        <p style={{ fontSize:11, color:"#bfdbfe" }}>
+                          {spoilerMode ? "🙈 Spoiler mode on" : "Full stats require GOAT / ALL-STAR tier"}
+                        </p>
+                      </div>
+                    )}
+                    {/* Highlights button in TeamView */}
+                    {!spoilerMode && game.status === "Final" && (() => {
+                      // Use a self-contained IIFE to manage highlights modal per game
+                      return <TeamGameHighlightsBtn game={game} />;
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── ErrorBoundary — prevents a single component error from blanking the page ──
+    class ErrorBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { err: null }; }
+      static getDerivedStateFromError(e) { return { err: e }; }
+      componentDidCatch(e, info) { console.error("NBA CatchUp error:", e, info); }
+      render() {
+        if (!this.state.err) return this.props.children;
+        return (
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+            minHeight:"100vh", background:"#eef4ff", padding:32, textAlign:"center" }}>
+            <p style={{ fontSize:48, marginBottom:16 }}>⚠️</p>
+            <h2 style={{ fontSize:20, fontWeight:900, color:"#1e3a8a", marginBottom:8 }}>Something went wrong</h2>
+            <p style={{ fontSize:13, color:"#60a5fa", marginBottom:24, maxWidth:400 }}>
+              {this.state.err?.message ?? "Unexpected error"}
+            </p>
+            <button onClick={() => { this.setState({ err: null }); }}
+              style={{ padding:"10px 28px", borderRadius:12, background:"#3b82f6",
+                color:"white", fontSize:13, fontWeight:700 }}>
+              Try Again
+            </button>
+          </div>
+        );
+      }
+    }
+
+    // ── Root ─────────────────────────────────────────────────────────────────────
+    function NBAGames() {
+      const [view,        setView]        = useState("home");
+      const [spoilerMode, setSpoilerMode] = useState(false);
+      const [gameCache,   setGameCache]   = useState({});
+      const [favTeams,    setFavTeams]    = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-teams")??"[]"); } catch { return []; } });
+      const [favPlayers,  setFavPlayers]  = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-players")??"[]"); } catch { return []; } });
+
+      const gameCacheRef = useRef({});
+      useEffect(() => { gameCacheRef.current = gameCache; }, [gameCache]);
+      const inFlight = useRef(new Set());
+
+      useEffect(() => { localStorage.setItem("nba-fav-teams",   JSON.stringify(favTeams));   }, [favTeams]);
+      useEffect(() => { localStorage.setItem("nba-fav-players", JSON.stringify(favPlayers)); }, [favPlayers]);
+
+      const loadDate = useCallback(async date => {
+        if (gameCacheRef.current[date] !== undefined || inFlight.current.has(date)) return null;
+        inFlight.current.add(date);
+        try {
+          const res = await loadGames(date);
+          setGameCache(prev => ({ ...prev, [date]: res.games ?? [] }));
+          inFlight.current.delete(date);
+          return res;
+        } catch (e) {
+          console.error("loadDate failed:", date, e);
+          inFlight.current.delete(date);
+          return { games: null, errCode: "network" };
+        }
+      }, []);
+
+      const isHome  = view === "home";
+      const isFavs  = view === "favorites";
+      const isTeam  = view?.type === "team";
+      const isPlayer = view?.type === "player";
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#eef4ff" }}>
+          {/* Header */}
+          <div style={{ position:"sticky", top:0, zIndex:50, background:"white",
+            borderBottom:"1px solid #dbeafe", boxShadow:"0 1px 16px rgba(59,130,246,0.06)" }}>
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:"14px 24px",
+              display:"flex", alignItems:"center", gap:10 }}>
+              <h1 style={{ fontSize:20, fontWeight:900, color:"#1e3a8a", display:"flex", alignItems:"center", gap:8, marginRight:6, flexShrink:0 }}>
+                🏀 <span>NBA CatchUp</span>
+              </h1>
+              <div style={{ display:"flex", gap:6 }}>
+                {[
+                  { id:"home",      label:"🏀 Games" },
+                  { id:"favorites", label:`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
+                ].map(tab => {
+                  const active = tab.id==="home" ? isHome : isFavs||isTeam||isPlayer;
+                  return (
+                    <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:"7px 16px",
+                      borderRadius:20, fontSize:12, fontWeight:700,
+                      background:active?"#3b82f6":"#f0f6ff", color:active?"white":"#60a5fa",
+                      boxShadow:active?"0 2px 8px rgba(59,130,246,0.3)":"none", transition:"all 0.15s" }}>
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ flex:1 }} />
+              <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
+                gap:7, padding:"8px 18px", borderRadius:20,
+                background:spoilerMode?"#1e3a8a":"#f0f6ff", color:spoilerMode?"white":"#3b82f6",
+                fontSize:12, fontWeight:700, flexShrink:0,
+                boxShadow:spoilerMode?"0 2px 14px rgba(30,58,138,.4), 0 0 0 3px rgba(59,130,246,.15)":"none",
+                transition:"all 0.2s", animation:spoilerMode?"pulseGlow 2s infinite":"none" }}>
+                <span style={{ fontSize:15 }}>{spoilerMode?"🙈":"👁️"}</span>
+                {spoilerMode?"Spoilers Hidden":"No Spoilers"}
+              </button>
+            </div>
+          </div>
+
+          {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} />}
+          {isFavs  && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
+            favPlayers={favPlayers} setFavPlayers={setFavPlayers}
+            onSelectTeam={t => setView({type:"team",team:t})}
+            onSelectPlayer={p => setView({type:"player",player:p})} />}
+          {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
+            onBack={() => setView("favorites")} spoilerMode={spoilerMode} />}
+          {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <ErrorBoundary><NBAGames /></ErrorBoundary>
+    );
+  </script>
+</body>
+</html>
