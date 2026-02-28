@@ -385,37 +385,34 @@
       } catch { return null; }
     }
 
-    // ── HighlightsButton — searches GAMETIME HIGHLIGHTS and opens on YouTube ───────
+    // ── HighlightsButton — pre-fetches video ID so <a> tag has direct URL ready ──
     function HighlightsButton({ game, date, style: extraStyle = {} }) {
-      const [busy, setBusy] = useState(false);
-      const handleClick = async () => {
-        const fallback = `https://www.youtube.com/results?search_query=${encodeURIComponent(
-          `${game.visitor.name} vs ${game.home.name} GAMETIME HIGHLIGHTS ${date}`
-        )}`;
-        // Open window SYNCHRONOUSLY first (mobile browsers block window.open after async)
-        const win = window.open(fallback, "_blank");
-        setBusy(true);
-        const videoId = await searchGametimeHighlight(game, date);
-        setBusy(false);
-        // Redirect to specific video once found
-        if (videoId && win && !win.closed) {
-          try { win.location.href = `https://youtu.be/${videoId}`; } catch {}
-        }
-      };
+      const fallback = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+        `${game.visitor.name} vs ${game.home.name} GAMETIME HIGHLIGHTS ${date}`
+      )}`;
+      const [url,   setUrl]   = useState(fallback);
+      const [ready, setReady] = useState(false);
+      useEffect(() => {
+        let cancelled = false;
+        searchGametimeHighlight(game, date).then(id => {
+          if (!cancelled) {
+            if (id) setUrl(`https://youtu.be/${id}`);
+            setReady(true);
+          }
+        });
+        return () => { cancelled = true; };
+      }, []);
       return (
-        <button
-          onClick={handleClick}
-          disabled={busy}
-          style={{ width:"100%", padding:"9px 12px", borderRadius:12,
-            background: busy ? "#f5f5f5" : "#fff1f2",
-            border:`1px solid ${busy ? "#e5e5e5" : "#fecaca"}`,
-            color: busy ? "#aaa" : "#dc2626",
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          style={{ display:"block", width:"100%", padding:"9px 12px", borderRadius:12,
+            background: ready ? "#fff1f2" : "#f8f8f8",
+            border:`1px solid ${ready ? "#fecaca" : "#e5e5e5"}`,
+            color: ready ? "#dc2626" : "#aaa",
             fontSize:11, fontWeight:700, letterSpacing:"0.04em",
-            transition:"all 0.15s", ...extraStyle }}
-          onMouseEnter={e => { if (!busy) { e.currentTarget.style.background="#fee2e2"; e.currentTarget.style.borderColor="#fca5a5"; }}}
-          onMouseLeave={e => { if (!busy) { e.currentTarget.style.background="#fff1f2"; e.currentTarget.style.borderColor="#fecaca"; }}}>
-          {busy ? "🔍 Searching…" : "🎬 Watch Highlights ↗"}
-        </button>
+            textDecoration:"none", textAlign:"center",
+            transition:"all 0.15s", ...extraStyle }}>
+          {ready ? "🎬 Watch Highlights ↗" : "🔍 Finding highlights…"}
+        </a>
       );
     }
 
@@ -1838,11 +1835,14 @@
       useEffect(() => { localStorage.setItem("nba-fav-teams",   JSON.stringify(favTeams));   }, [favTeams]);
       useEffect(() => { localStorage.setItem("nba-fav-players", JSON.stringify(favPlayers)); }, [favPlayers]);
       useEffect(() => { localStorage.setItem("nba-spoiler-mode", String(spoilerMode)); }, [spoilerMode]);
-      // Show 7-day computed records immediately as a placeholder, then replace
-      // with full-season standings once the async fetch completes.
+      // Only use the 7-day computed records as a placeholder while the
+      // full-season fetch is still in flight. Once apiStandings is populated
+      // never let gameCache changes overwrite the accurate data.
       useEffect(() => {
-        setStandings(computeStandingsFromGames(gameCache));
-      }, [gameCache]);
+        if (Object.keys(apiStandings).length === 0) {
+          setStandings(computeStandingsFromGames(gameCache));
+        }
+      }, [gameCache, apiStandings]);
       useEffect(() => {
         fetchStandings().then(fullSeason => {
           if (Object.keys(fullSeason).length > 0) {
