@@ -190,6 +190,17 @@
       };
     }
 
+    // ── Fetch player stats for a set of game IDs (triple double detection) ───────
+    async function fetchStatsForGameIds(gameIds) {
+      if (!gameIds.length) return [];
+      // Fetch in one call; BDL allows multiple game_ids[] params
+      const query = gameIds.slice(0, 12).map(id => `game_ids[]=${id}`).join("&");
+      const res = await fetchAll(`/stats?${query}`);
+      if (res._err) return [];
+      // Only include players who actually played (have minutes)
+      return (res.data ?? []).filter(s => parseMin(s.min) > 0);
+    }
+
     // ── Standings ────────────────────────────────────────────────────────────────
     // Fetch full-season standings.
     // Strategy: try /standings first (fast, 1 call). If empty/error, fall back to
@@ -272,6 +283,8 @@
     const DATES = Array.from({ length: 7 }, (_, i) => dateStr(i));
     // Future dates: next 6 days (daysAgo = -1 = tomorrow, -2 = day after, etc.)
     const FUTURE_DATES = Array.from({ length: 6 }, (_, i) => dateStr(-(i + 1)));
+    // Extended range for Don't Miss page – 10 days balances streak accuracy vs API load
+    const DONT_MISS_DATES = Array.from({ length: 10 }, (_, i) => dateStr(i));
 
     // ── Data normalisation ───────────────────────────────────────────────────────
     const byPts = arr => [...arr].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
@@ -638,7 +651,7 @@
                           color:spoilerMode?"#93c5fd":won?"#1e3a8a":"#93c5fd" }}>
                           {side.score??"—"}
                         </span>
-                        {rec && (
+                        {rec && !spoilerMode && (
                           <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#64748b", letterSpacing:"0.03em" }}>
                             {rec.wins}–{rec.losses}
                           </span>
@@ -1101,6 +1114,282 @@
                 </div>
               )}
             </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    // ── Don't Miss View ───────────────────────────────────────────────────────────
+    function DontMissView({ gameCache, loadDate, standings, spoilerMode }) {
+      const isMobile = useWindowWidth() < 600;
+      const [loading,    setLoading]    = useState(true);
+      const [tdLoading,  setTdLoading]  = useState(true);
+      const [tripleDoubles, setTripleDoubles] = useState([]);
+      const [tdDate,     setTdDate]     = useState(null);
+      const tdFetchedRef = useRef(null); // which date we've already fetched TDs for
+
+      // Load 10 days of game data sequentially to avoid API rate-limiting
+      useEffect(() => {
+        let active = true;
+        (async () => {
+          for (const d of DONT_MISS_DATES) {
+            if (!active) return;
+            await loadDate(d);
+          }
+          if (active) setLoading(false);
+        })();
+        return () => { active = false; };
+      }, []);
+
+      // Once games load, find most-recent final day and fetch player stats for TDs
+      useEffect(() => {
+        if (loading) return;
+        let active = true;
+        let targetDate = null, targetGames = [];
+        for (const date of DONT_MISS_DATES) {
+          const finals = (gameCache[date] ?? []).filter(g => g.status === "Final");
+          if (finals.length > 0) { targetDate = date; targetGames = finals; break; }
+        }
+        if (!targetDate || tdFetchedRef.current === targetDate) return;
+        tdFetchedRef.current = targetDate;
+        setTdDate(targetDate);
+        setTdLoading(true);
+        const gameIds = targetGames.map(g => g.id);
+        fetchStatsForGameIds(gameIds).then(stats => {
+          if (!active) return;
+          setTripleDoubles(stats.filter(s => (s.pts??0) >= 10 && (s.reb??0) >= 10 && (s.ast??0) >= 10));
+          setTdLoading(false);
+        });
+        return () => { active = false; };
+      }, [loading, gameCache]);
+
+      // ── Compute streaks (hot / cold) from all 14 days in the cache ──────────────
+      const { hotStreaks, coldStreaks } = React.useMemo(() => {
+        const teamGames = {};
+        DONT_MISS_DATES.forEach(date => {
+          (gameCache[date] ?? []).forEach(g => {
+            if (g.status !== "Final") return;
+            const homeWon = (g.home.score ?? 0) > (g.visitor.score ?? 0);
+            [[g.home.abbreviation, homeWon], [g.visitor.abbreviation, !homeWon]].forEach(([abbr, won]) => {
+              if (!abbr) return;
+              if (!teamGames[abbr]) teamGames[abbr] = [];
+              teamGames[abbr].push({ date, won });
+            });
+          });
+        });
+        const hot = [], cold = [];
+        Object.entries(teamGames).forEach(([abbr, games]) => {
+          games.sort((a, b) => b.date.localeCompare(a.date));
+          if (!games.length) return;
+          const firstWon = games[0].won;
+          let streak = 0;
+          for (const g of games) { if (g.won === firstWon) streak++; else break; }
+          if (streak >= 3) {
+            const team = ALL_TEAMS.find(t => t.abbreviation === abbr);
+            const entry = { abbr, team, streak, rec: standings?.[abbr] };
+            firstWon ? hot.push(entry) : cold.push(entry);
+          }
+        });
+        hot.sort((a, b) => b.streak - a.streak);
+        cold.sort((a, b) => b.streak - a.streak);
+        return { hotStreaks: hot, coldStreaks: cold };
+      }, [gameCache, standings]);
+
+      // ── Compute upsets from all 14 days ─────────────────────────────────────────
+      const upsets = React.useMemo(() => {
+        if (!standings || !Object.keys(standings).length) return [];
+        const list = [];
+        DONT_MISS_DATES.forEach(date => {
+          (gameCache[date] ?? []).forEach(g => {
+            if (g.status !== "Final") return;
+            const hs = g.home.score ?? 0, vs = g.visitor.score ?? 0;
+            if (hs === 0 && vs === 0) return;
+            const homeWon = hs > vs;
+            const winner = homeWon ? g.home : g.visitor;
+            const loser  = homeWon ? g.visitor : g.home;
+            const wRec = standings[winner.abbreviation], lRec = standings[loser.abbreviation];
+            if (!wRec || !lRec) return;
+            const wGP = wRec.wins + wRec.losses, lGP = lRec.wins + lRec.losses;
+            if (wGP < 5 || lGP < 5) return;
+            const wPct = wRec.wins / wGP, lPct = lRec.wins / lGP;
+            if (lPct - wPct < 0.08) return; // threshold: at least 8% gap
+            list.push({ date, winner, loser,
+              winnerScore: homeWon ? hs : vs, loserScore: homeWon ? vs : hs,
+              wPct, lPct, magnitude: lPct - wPct, wRec, lRec });
+          });
+        });
+        list.sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.magnitude - a.magnitude);
+        return list.slice(0, 8);
+      }, [gameCache, standings]);
+
+      const SectionCard = ({ emoji, title, subtitle, gradient, children }) => (
+        <div style={{ background:"white", borderRadius:isMobile?14:20, border:"1px solid #dbeafe",
+          boxShadow:"0 2px 20px rgba(99,102,241,0.08)", overflow:"hidden" }}>
+          <div style={{ background:gradient, padding:isMobile?"11px 14px":"14px 22px",
+            display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:isMobile?18:20 }}>{emoji}</span>
+            <div>
+              <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"white", letterSpacing:"0.03em" }}>{title}</div>
+              {subtitle && <div style={{ fontSize:9, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:1 }}>{subtitle}</div>}
+            </div>
+          </div>
+          {children}
+        </div>
+      );
+
+      const Empty = ({ msg }) => (
+        <div style={{ padding:"28px 20px", textAlign:"center", color:"#94a3b8", fontSize:12, fontWeight:600 }}>{msg}</div>
+      );
+
+      if (loading) return (
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:"60px 24px" }}><Spinner full /></div>
+      );
+
+      return (
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"12px 12px 28px":"20px 24px 36px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:isMobile?12:20 }}>
+
+            {/* ── Triple Double Watch ── */}
+            <SectionCard emoji="🔮" title="Triple Double Watch"
+              subtitle={tdDate ? `From ${fmtDate(tdDate)} · most recent game day` : "Most recent game day"}
+              gradient="linear-gradient(135deg,#4c1d95,#7c3aed)">
+              {tdLoading ? <div style={{ padding:"28px 0" }}><Spinner /></div>
+              : !tripleDoubles.length ? <Empty msg={`No triple doubles on ${tdDate ? fmtDate(tdDate) : "last game day"}`} />
+              : <div>{tripleDoubles.map((s, i) => {
+                  const name = `${s.player?.first_name ?? ""} ${s.player?.last_name ?? ""}`.trim();
+                  return (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:isMobile?10:14,
+                      padding:isMobile?"10px 14px":"12px 20px",
+                      borderBottom: i < tripleDoubles.length-1 ? "1px solid #f0f0f8" : "none",
+                      background: i%2===0 ? "white" : "#fafbff" }}>
+                      <TeamLogo abbr={s.team?.abbreviation} size={isMobile?32:40} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"#1e3a8a",
+                          whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{name || "—"}</div>
+                        <div style={{ fontSize:8, fontWeight:700, color:"#7c3aed", letterSpacing:"0.05em" }}>
+                          {s.team?.abbreviation} · TRIPLE DOUBLE
+                        </div>
+                      </div>
+                      {[["PTS",s.pts],["REB",s.reb],["AST",s.ast]].map(([lbl,val]) => (
+                        <div key={lbl} style={{ textAlign:"center", minWidth:isMobile?30:36 }}>
+                          <div style={{ fontSize:isMobile?16:20, fontWeight:900, color:"#7c3aed" }}>{val??0}</div>
+                          <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8", letterSpacing:"0.06em" }}>{lbl}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}</div>}
+            </SectionCard>
+
+            {/* ── Upsets ── */}
+            <SectionCard emoji="💥" title="Upsets"
+              subtitle={`Underdog wins from the past ${DONT_MISS_DATES.length} days (8%+ win-rate gap)`}
+              gradient="linear-gradient(135deg,#7f1d1d,#dc2626)">
+              {!upsets.length ? <Empty msg={`No major upsets in the past ${DONT_MISS_DATES.length} days`} />
+              : <div>{upsets.map((u, i) => (
+                  <div key={i} style={{ padding:isMobile?"10px 14px":"12px 20px",
+                    borderBottom: i < upsets.length-1 ? "1px solid #fff0f0" : "none",
+                    background: i%2===0 ? "white" : "#fff8f8" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                      <span style={{ fontSize:9, fontWeight:700, color:"#94a3b8" }}>{fmtDate(u.date)}</span>
+                      <span style={{ fontSize:9, fontWeight:800, background:"#fff1f2",
+                        border:"1px solid #fecaca", color:"#dc2626", padding:"2px 8px", borderRadius:20 }}>
+                        +{Math.round(u.magnitude*100)}% underdog
+                      </span>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:isMobile?5:8, flex:1, minWidth:0 }}>
+                        <TeamLogo abbr={u.winner.abbreviation} size={isMobile?26:34} />
+                        <div>
+                          <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#15803d" }}>
+                            {isMobile ? u.winner.abbreviation : `${u.winner.city} ${u.winner.name}`}
+                          </div>
+                          {u.wRec && <div style={{ fontSize:8, color:"#94a3b8", fontWeight:600 }}>
+                            {u.wRec.wins}–{u.wRec.losses} · {(u.wPct*100).toFixed(0)}% win rate
+                          </div>}
+                        </div>
+                      </div>
+                      {!spoilerMode && (
+                        <div style={{ textAlign:"center", flexShrink:0, padding:"0 6px" }}>
+                          <div style={{ fontSize:isMobile?15:18, fontWeight:900, color:"#1e3a8a" }}>
+                            {u.winnerScore}–{u.loserScore}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ display:"flex", alignItems:"center", gap:isMobile?5:8, flex:1, minWidth:0, justifyContent:"flex-end" }}>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#94a3b8" }}>
+                            {isMobile ? u.loser.abbreviation : `${u.loser.city} ${u.loser.name}`}
+                          </div>
+                          {u.lRec && <div style={{ fontSize:8, color:"#94a3b8", fontWeight:600 }}>
+                            {u.lRec.wins}–{u.lRec.losses} · {(u.lPct*100).toFixed(0)}% win rate
+                          </div>}
+                        </div>
+                        <TeamLogo abbr={u.loser.abbreviation} size={isMobile?26:34} />
+                      </div>
+                    </div>
+                  </div>
+                ))}</div>}
+            </SectionCard>
+
+            {/* ── Hot Streak ── */}
+            <SectionCard emoji="🔥" title="Hot Streak"
+              subtitle={`Teams on a 3+ game winning run (last ${DONT_MISS_DATES.length} days)`}
+              gradient="linear-gradient(135deg,#7c2d12,#ea580c)">
+              {!hotStreaks.length ? <Empty msg={`No teams on a 3+ game win streak right now`} />
+              : <div>{hotStreaks.map((t, i) => (
+                  <div key={t.abbr} style={{ display:"flex", alignItems:"center", gap:isMobile?10:16,
+                    padding:isMobile?"10px 14px":"12px 20px",
+                    borderBottom: i < hotStreaks.length-1 ? "1px solid #fff7ed" : "none",
+                    background: i%2===0 ? "white" : "#fffbf5" }}>
+                    <div style={{ fontSize:isMobile?14:16, fontWeight:900, color:"#d97706",
+                      minWidth:isMobile?22:26, textAlign:"center" }}>#{i+1}</div>
+                    <TeamLogo abbr={t.abbr} size={isMobile?36:44} />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:isMobile?12:14, fontWeight:800, color:"#1e3a8a" }}>
+                        {isMobile ? t.abbr : (t.team ? `${t.team.city} ${t.team.name}` : t.abbr)}
+                      </div>
+                      {t.rec && <div style={{ fontSize:isMobile?9:10, color:"#60a5fa", fontWeight:600 }}>
+                        {t.rec.wins}–{t.rec.losses} season record
+                      </div>}
+                    </div>
+                    <div style={{ textAlign:"center", flexShrink:0 }}>
+                      <div style={{ fontSize:isMobile?24:30, fontWeight:900, color:"#ea580c", lineHeight:1 }}>W{t.streak}</div>
+                      <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8", letterSpacing:"0.06em", marginTop:1 }}>IN A ROW</div>
+                    </div>
+                  </div>
+                ))}</div>}
+            </SectionCard>
+
+            {/* ── Cold Streak ── */}
+            <SectionCard emoji="❄️" title="Cold Streak"
+              subtitle={`Teams on a 3+ game losing run (last ${DONT_MISS_DATES.length} days)`}
+              gradient="linear-gradient(135deg,#0c4a6e,#0284c7)">
+              {!coldStreaks.length ? <Empty msg={`No teams on a 3+ game losing streak right now`} />
+              : <div>{coldStreaks.map((t, i) => (
+                  <div key={t.abbr} style={{ display:"flex", alignItems:"center", gap:isMobile?10:16,
+                    padding:isMobile?"10px 14px":"12px 20px",
+                    borderBottom: i < coldStreaks.length-1 ? "1px solid #f0f9ff" : "none",
+                    background: i%2===0 ? "white" : "#f8fcff" }}>
+                    <div style={{ fontSize:isMobile?14:16, fontWeight:900, color:"#0284c7",
+                      minWidth:isMobile?22:26, textAlign:"center" }}>#{i+1}</div>
+                    <TeamLogo abbr={t.abbr} size={isMobile?36:44} />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:isMobile?12:14, fontWeight:800, color:"#1e3a8a" }}>
+                        {isMobile ? t.abbr : (t.team ? `${t.team.city} ${t.team.name}` : t.abbr)}
+                      </div>
+                      {t.rec && <div style={{ fontSize:isMobile?9:10, color:"#60a5fa", fontWeight:600 }}>
+                        {t.rec.wins}–{t.rec.losses} season record
+                      </div>}
+                    </div>
+                    <div style={{ textAlign:"center", flexShrink:0 }}>
+                      <div style={{ fontSize:isMobile?24:30, fontWeight:900, color:"#0284c7", lineHeight:1 }}>L{t.streak}</div>
+                      <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8", letterSpacing:"0.06em", marginTop:1 }}>IN A ROW</div>
+                    </div>
+                  </div>
+                ))}</div>}
+            </SectionCard>
 
           </div>
         </div>
@@ -1652,6 +1941,39 @@
       }).length;
       const weeklyL = finishedGames.length - weeklyW;
 
+      // Upcoming: limit to next 5 games
+      const upcomingGames5 = upcomingGames.slice(0, 5);
+
+      // Schedule difficulty: average opponent win% across next 5 games
+      const scheduleDifficulty = (() => {
+        if (!upcomingGames5.length || !standings) return null;
+        const avg = upcomingGames5.reduce((sum, g) => {
+          const opp = g.home.abbreviation === team.abbreviation ? g.visitor : g.home;
+          const rec = standings[opp.abbreviation];
+          const gp = (rec?.wins ?? 0) + (rec?.losses ?? 0);
+          return sum + (gp > 0 ? rec.wins / gp : 0.5);
+        }, 0) / upcomingGames5.length;
+        if (avg < 0.40) return { label:"Easy",      color:"#15803d", bg:"#f0fdf4", border:"#86efac", pct:avg };
+        if (avg < 0.50) return { label:"Moderate",  color:"#a16207", bg:"#fefce8", border:"#fde047", pct:avg };
+        if (avg < 0.57) return { label:"Hard",      color:"#c2410c", bg:"#fff7ed", border:"#fdba74", pct:avg };
+        return                 { label:"Very Hard",  color:"#991b1b", bg:"#fff1f2", border:"#fca5a5", pct:avg };
+      })();
+
+      // Team form: last 5 finished games
+      const last5 = finishedGames.slice(0, 5);
+      const formResults = last5.map(g => {
+        const isHome = g.home.abbreviation === team.abbreviation;
+        const our  = isHome ? (g.home.score ?? 0) : (g.visitor.score ?? 0);
+        const opp  = isHome ? (g.visitor.score ?? 0) : (g.home.score ?? 0);
+        const oppAbbr = isHome ? g.visitor.abbreviation : g.home.abbreviation;
+        return { won: our > opp, diff: our - opp, oppAbbr };
+      });
+      const formW = formResults.filter(r => r.won).length;
+      const formL = formResults.length - formW;
+      const avgDiff = formResults.length > 0
+        ? formResults.reduce((s, r) => s + r.diff, 0) / formResults.length
+        : null;
+
       // Season record from standings
       const seasonRec = standings?.[team.abbreviation];
 
@@ -1695,81 +2017,186 @@
 
           <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"12px 12px 0":"20px 24px 0" }}>
 
-            {/* ── Upcoming games mini-schedule ── */}
-            {upcomingGames.length > 0 && (
-              <div style={{ background:"white", borderRadius:isMobile?12:18, border:"1px solid #c7d2fe",
-                boxShadow:"0 2px 12px rgba(99,102,241,0.08)", marginBottom:isMobile?12:20, overflow:"hidden" }}>
-                <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)", padding:isMobile?"10px 14px":"12px 20px",
-                  display:"flex", alignItems:"center", gap:8 }}>
+            {/* ── Schedule + Form row — always side-by-side ── */}
+            <div style={{ display:"flex", gap:isMobile?12:20, flexDirection:isMobile?"column":"row",
+              marginBottom:isMobile?12:20, alignItems:"flex-start" }}>
+
+              {/* ── Upcoming Schedule (always rendered, empty state when no games) ── */}
+              <div style={{ flex:"1 1 56%", minWidth:0, background:"white", borderRadius:isMobile?12:18,
+                border:"1px solid #c7d2fe", boxShadow:"0 2px 12px rgba(99,102,241,0.08)", overflow:"hidden" }}>
+                <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)",
+                  padding:isMobile?"10px 14px":"12px 20px", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:isMobile?13:15 }}>📅</span>
-                  <span style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>
-                    Upcoming Schedule
-                  </span>
+                  <span style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>Upcoming Schedule</span>
                   <span style={{ fontSize:isMobile?10:11, color:"rgba(255,255,255,0.5)", fontWeight:600, marginLeft:4 }}>
-                    Next {upcomingGames.length} game{upcomingGames.length !== 1 ? "s" : ""}
+                    {upcomingGames5.length > 0 ? `Next ${upcomingGames5.length} game${upcomingGames5.length !== 1 ? "s" : ""}` : ""}
                   </span>
+                  {scheduleDifficulty && (
+                    <span style={{ marginLeft:"auto", padding:"3px 10px", borderRadius:20,
+                      background:scheduleDifficulty.bg, border:`1px solid ${scheduleDifficulty.border}`,
+                      color:scheduleDifficulty.color, fontSize:isMobile?8:9, fontWeight:800, letterSpacing:"0.06em" }}>
+                      {scheduleDifficulty.label.toUpperCase()} SCHEDULE
+                    </span>
+                  )}
                 </div>
-                <div style={{ display:"flex", flexDirection:"column" }}>
-                  {upcomingGames.map((game, idx) => {
-                    const isHome = game.home.abbreviation === team.abbreviation;
-                    const opp = isHome ? game.visitor : game.home;
-                    const gt = fmtGameTime(game.status);
-                    const oppRec = standings?.[opp.abbreviation];
-                    return (
-                      <div key={game.id} style={{ display:"flex", alignItems:"center",
-                        padding:isMobile?"10px 14px":"12px 20px", gap:isMobile?10:16,
-                        borderBottom: idx < upcomingGames.length - 1 ? "1px solid #eef2ff" : "none",
-                        background: idx % 2 === 0 ? "white" : "#fafbff" }}>
-                        {/* Date */}
-                        <div style={{ minWidth:isMobile?38:48, flexShrink:0, textAlign:"center" }}>
-                          <div style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#a5b4fc",
-                            letterSpacing:"0.07em", textTransform:"uppercase", lineHeight:1 }}>
-                            {new Date(game.date + "T12:00:00").toLocaleDateString("en-US",{weekday:"short"})}
-                          </div>
-                          <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a", lineHeight:1.2 }}>
-                            {new Date(game.date + "T12:00:00").toLocaleDateString("en-US",{month:"numeric",day:"numeric"})}
-                          </div>
+                {upcomingGames5.length === 0 ? (
+                  <div style={{ padding:"28px 20px", textAlign:"center", color:"#94a3b8", fontSize:12, fontWeight:600 }}>
+                    {loadingAll ? "Loading schedule…" : "No upcoming games in the next 6 days"}
+                  </div>
+                ) : (
+                  <>
+                    {scheduleDifficulty && (
+                      <div style={{ padding:isMobile?"8px 14px":"10px 20px", borderBottom:"1px solid #eef2ff", background:"#fafbff" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                          <span style={{ fontSize:9, fontWeight:700, color:"#94a3b8", letterSpacing:"0.06em" }}>DIFFICULTY RATING</span>
+                          <span style={{ fontSize:9, fontWeight:800, color:scheduleDifficulty.color }}>
+                            {(scheduleDifficulty.pct * 100).toFixed(0)}% avg opp win rate
+                          </span>
                         </div>
-                        {/* Home/Away pill */}
-                        <span style={{ fontSize:isMobile?8:9, fontWeight:800, letterSpacing:"0.07em",
-                          padding:"2px 7px", borderRadius:20, flexShrink:0,
-                          background: isHome ? "#dbeafe" : "#f0f9ff",
-                          color: isHome ? "#1d4ed8" : "#0369a1" }}>
-                          {isHome ? "HOME" : "AWAY"}
-                        </span>
-                        {/* Opponent */}
-                        <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:10, flex:1, minWidth:0 }}>
-                          <TeamLogo abbr={opp.abbreviation} size={isMobile?28:34} />
-                          <div>
-                            <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#1e3a8a" }}>
-                              {isMobile ? opp.abbreviation : `${opp.city} ${opp.name}`}
-                            </div>
-                            {oppRec && (
-                              <div style={{ fontSize:isMobile?9:10, color:"#60a5fa", fontWeight:600 }}>
-                                {oppRec.wins}–{oppRec.losses}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {/* Time */}
-                        <div style={{ flexShrink:0, textAlign:"right" }}>
-                          {gt ? (
-                            <>
-                              <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#1e3a8a" }}>
-                                {gt.time} <span style={{ fontSize:isMobile?9:10, fontWeight:600 }}>{gt.ampm}</span>
-                              </div>
-                              <div style={{ fontSize:isMobile?8:9, color:"#a5b4fc", fontWeight:600 }}>{gt.tz}</div>
-                            </>
-                          ) : (
-                            <span style={{ fontSize:isMobile?10:11, color:"#c7d2fe", fontWeight:700 }}>TBD</span>
-                          )}
+                        <div style={{ height:5, borderRadius:4, background:"#e2e8f0", overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${scheduleDifficulty.pct * 100}%`,
+                            background:scheduleDifficulty.color, borderRadius:4 }} />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+                    <div style={{ display:"flex", flexDirection:"column" }}>
+                      {upcomingGames5.map((game, idx) => {
+                        const isHome = game.home.abbreviation === team.abbreviation;
+                        const opp = isHome ? game.visitor : game.home;
+                        const gt = fmtGameTime(game.status);
+                        const oppRec = standings?.[opp.abbreviation];
+                        const oppWinPct = oppRec ? oppRec.wins / Math.max(1, oppRec.wins + oppRec.losses) : null;
+                        return (
+                          <div key={game.id} style={{ display:"flex", alignItems:"center",
+                            padding:isMobile?"10px 14px":"12px 20px", gap:isMobile?10:16,
+                            borderBottom: idx < upcomingGames5.length - 1 ? "1px solid #eef2ff" : "none",
+                            background: idx % 2 === 0 ? "white" : "#fafbff" }}>
+                            <div style={{ minWidth:isMobile?38:48, flexShrink:0, textAlign:"center" }}>
+                              <div style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#a5b4fc",
+                                letterSpacing:"0.07em", textTransform:"uppercase", lineHeight:1 }}>
+                                {new Date(game.date + "T12:00:00").toLocaleDateString("en-US",{weekday:"short"})}
+                              </div>
+                              <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a", lineHeight:1.2 }}>
+                                {new Date(game.date + "T12:00:00").toLocaleDateString("en-US",{month:"numeric",day:"numeric"})}
+                              </div>
+                            </div>
+                            <span style={{ fontSize:isMobile?8:9, fontWeight:800, letterSpacing:"0.07em",
+                              padding:"2px 7px", borderRadius:20, flexShrink:0,
+                              background: isHome ? "#dbeafe" : "#f0f9ff",
+                              color: isHome ? "#1d4ed8" : "#0369a1" }}>
+                              {isHome ? "HOME" : "AWAY"}
+                            </span>
+                            <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:10, flex:1, minWidth:0 }}>
+                              <TeamLogo abbr={opp.abbreviation} size={isMobile?28:34} />
+                              <div>
+                                <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#1e3a8a" }}>
+                                  {isMobile ? opp.abbreviation : `${opp.city} ${opp.name}`}
+                                </div>
+                                {oppRec && (
+                                  <div style={{ fontSize:isMobile?9:10, color:"#60a5fa", fontWeight:600 }}>
+                                    {oppRec.wins}–{oppRec.losses}
+                                    {oppWinPct !== null && (
+                                      <span style={{ color:"#94a3b8", marginLeft:4 }}>({(oppWinPct*100).toFixed(0)}%)</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ flexShrink:0, textAlign:"right" }}>
+                              {gt ? (
+                                <>
+                                  <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#1e3a8a" }}>
+                                    {gt.time} <span style={{ fontSize:isMobile?9:10, fontWeight:600 }}>{gt.ampm}</span>
+                                  </div>
+                                  <div style={{ fontSize:isMobile?8:9, color:"#a5b4fc", fontWeight:600 }}>{gt.tz}</div>
+                                </>
+                              ) : (
+                                <span style={{ fontSize:isMobile?10:11, color:"#c7d2fe", fontWeight:700 }}>TBD</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+
+              {/* ── Team Form ── */}
+              {last5.length > 0 && (
+                <div style={{ flex:"1 1 40%", minWidth:0, background:"white", borderRadius:isMobile?12:18,
+                  border:"1px solid #c7d2fe", boxShadow:"0 2px 12px rgba(99,102,241,0.08)", overflow:"hidden" }}>
+                  <div style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a)",
+                    padding:isMobile?"10px 14px":"12px 20px", display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:isMobile?13:15 }}>📈</span>
+                    <span style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>Team Form</span>
+                    <span style={{ fontSize:isMobile?10:11, color:"rgba(255,255,255,0.5)", fontWeight:600, marginLeft:4 }}>
+                      Last {last5.length} games
+                    </span>
+                  </div>
+                  <div style={{ padding:isMobile?"14px":"20px", display:"flex", flexDirection:"column", gap:isMobile?14:18 }}>
+                    <div>
+                      <div style={{ fontSize:9, fontWeight:700, color:"#94a3b8", letterSpacing:"0.07em", marginBottom:8 }}>RESULTS (most recent first)</div>
+                      <div style={{ display:"flex", gap:isMobile?8:12, flexWrap:"wrap" }}>
+                        {formResults.map((r, i) => (
+                          <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                            <div style={{ width:isMobile?34:40, height:isMobile?34:40, borderRadius:"50%",
+                              background: r.won ? "#dcfce7" : "#fee2e2",
+                              border:`2px solid ${r.won ? "#22c55e" : "#ef4444"}`,
+                              display:"flex", alignItems:"center", justifyContent:"center",
+                              fontSize:isMobile?12:14, fontWeight:900,
+                              color: r.won ? "#15803d" : "#dc2626" }}>
+                              {r.won ? "W" : "L"}
+                            </div>
+                            <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8" }}>vs {r.oppAbbr}</div>
+                            <div style={{ fontSize:8, fontWeight:800, color: r.diff > 0 ? "#15803d" : "#dc2626" }}>
+                              {r.diff > 0 ? "+" : ""}{r.diff}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                        <span style={{ fontSize:9, fontWeight:700, color:"#94a3b8", letterSpacing:"0.07em" }}>FORM TREND</span>
+                        <span style={{ fontSize:9, fontWeight:600, color:"#94a3b8" }}>
+                          {[...formResults].reverse().map(r => r.won ? "W" : "L").join(" → ")}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", gap:3, height:8, borderRadius:4, overflow:"hidden" }}>
+                        {[...formResults].reverse().map((r, i) => (
+                          <div key={i} style={{ flex:1, borderRadius:2,
+                            background: r.won ? "#22c55e" : "#ef4444",
+                            opacity: 0.45 + (i / Math.max(formResults.length - 1, 1)) * 0.55 }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:isMobile?10:14 }}>
+                      <div style={{ flex:1, background: formW >= formL ? "#f0fdf4" : "#fff1f2",
+                        border:`1px solid ${formW >= formL ? "#bbf7d0" : "#fecaca"}`,
+                        borderRadius:10, padding:isMobile?"10px":"14px", textAlign:"center" }}>
+                        <div style={{ fontSize:isMobile?22:28, fontWeight:900, lineHeight:1,
+                          color: formW > formL ? "#15803d" : formW < formL ? "#dc2626" : "#1e3a8a" }}>
+                          {formW}–{formL}
+                        </div>
+                        <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8", letterSpacing:"0.07em", marginTop:3 }}>FORM RECORD</div>
+                      </div>
+                      {avgDiff !== null && (
+                        <div style={{ flex:1, background: avgDiff >= 0 ? "#f0fdf4" : "#fff1f2",
+                          border:`1px solid ${avgDiff >= 0 ? "#bbf7d0" : "#fecaca"}`,
+                          borderRadius:10, padding:isMobile?"10px":"14px", textAlign:"center" }}>
+                          <div style={{ fontSize:isMobile?22:28, fontWeight:900, lineHeight:1,
+                            color: avgDiff > 0 ? "#15803d" : avgDiff < 0 ? "#dc2626" : "#64748b" }}>
+                            {avgDiff > 0 ? "+" : ""}{avgDiff.toFixed(1)}
+                          </div>
+                          <div style={{ fontSize:8, fontWeight:700, color:"#94a3b8", letterSpacing:"0.07em", marginTop:3 }}>AVG PT DIFF</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* ── Past games grid ── */}
             {loadingAll && !teamGames.length ? <Spinner full />
@@ -1835,21 +2262,34 @@
       useEffect(() => { localStorage.setItem("nba-fav-teams",   JSON.stringify(favTeams));   }, [favTeams]);
       useEffect(() => { localStorage.setItem("nba-fav-players", JSON.stringify(favPlayers)); }, [favPlayers]);
       useEffect(() => { localStorage.setItem("nba-spoiler-mode", String(spoilerMode)); }, [spoilerMode]);
-      // Only use the 7-day computed records as a placeholder while the
-      // full-season fetch is still in flight. Once apiStandings is populated
-      // never let gameCache changes overwrite the accurate data.
+      // Temporary placeholder: compute from the standard 7-day DATES window only.
+      // Explicitly scoped to DATES so that extra dates loaded by other views
+      // (e.g. DontMiss) never pollute the placeholder with non-season data.
+      // Once apiStandings is populated this effect becomes a no-op.
       useEffect(() => {
         if (Object.keys(apiStandings).length === 0) {
-          setStandings(computeStandingsFromGames(gameCache));
+          const slice = Object.fromEntries(
+            DATES.map(d => [d, gameCache[d]]).filter(([, v]) => v !== undefined)
+          );
+          setStandings(computeStandingsFromGames(slice));
         }
       }, [gameCache, apiStandings]);
+
+      // Fetch full-season standings. Retries up to 3 times with 3-second back-off
+      // in case the API is temporarily rate-limited at startup.
       useEffect(() => {
-        fetchStandings().then(fullSeason => {
-          if (Object.keys(fullSeason).length > 0) {
-            setApiStandings(fullSeason);
-            setStandings(fullSeason);   // replace placeholder with accurate full-season data
+        let cancelled = false, attempts = 0;
+        const load = () => fetchStandings().then(fs => {
+          if (cancelled) return;
+          if (Object.keys(fs).length > 0) {
+            setApiStandings(fs);
+            setStandings(fs);
+          } else if (++attempts < 4) {
+            setTimeout(load, 3000); // wait 3 s then retry
           }
         });
+        load();
+        return () => { cancelled = true; };
       }, []);
 
       const loadDate = useCallback(async date => {
@@ -1867,10 +2307,11 @@
         }
       }, []);
 
-      const isHome  = view === "home";
-      const isFavs  = view === "favorites";
-      const isTeam  = view?.type === "team";
-      const isPlayer = view?.type === "player";
+      const isHome     = view === "home";
+      const isFavs     = view === "favorites";
+      const isDontMiss = view === "dontmiss";
+      const isTeam     = view?.type === "team";
+      const isPlayer   = view?.type === "player";
 
       return (
         <div style={{ minHeight:"100vh", background:"#eef4ff" }}>
@@ -1885,9 +2326,10 @@
               <div style={{ display:"flex", gap:6, order:isMobile?3:-1, width:isMobile?"100%":"auto" }}>
                 {[
                   { id:"home",      label:isMobile?"🏀":"🏀 Games" },
-                  { id:"favorites", label:isMobile?`⭐`:`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
+                  { id:"favorites", label:isMobile?"⭐":`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
+                  { id:"dontmiss",  label:isMobile?"🔥":"🔥 Don't Miss!" },
                 ].map(tab => {
-                  const active = tab.id==="home" ? isHome : isFavs||isTeam||isPlayer;
+                  const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : isFavs||isTeam||isPlayer;
                   return (
                     <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"6px 10px":"7px 16px",
                       borderRadius:20, fontSize:isMobile?11:12, fontWeight:700,
@@ -1922,6 +2364,8 @@
                 favPlayers={favPlayers} setFavPlayers={setFavPlayers}
                 onSelectTeam={t => setView({type:"team",team:t})}
                 onSelectPlayer={p => setView({type:"player",player:p})} />}
+              {isDontMiss && <DontMissView gameCache={gameCache} loadDate={loadDate}
+                standings={standings} spoilerMode={spoilerMode} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
