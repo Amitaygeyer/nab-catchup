@@ -7,6 +7,9 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
   <style>
@@ -21,6 +24,8 @@
     ::-webkit-scrollbar-thumb { background:#bfdbfe; border-radius:4px; }
     button, input { font-family:inherit; }
     button { cursor:pointer; border:none; }
+    @keyframes modalSlideIn { from { opacity:0; transform:translateY(-20px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .modal-anim { animation: modalSlideIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both; }
     @media (max-width: 600px) {
       .mobile-hide { display: none !important; }
       .mobile-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -291,6 +296,44 @@
       ["LAL","SAC"],["GSW","CLE"],["OKC","MIA"],["CHI","NYK"],["MIL","BOS"],
       ["PHX","LAL"],["LAC","LAL"],["HOU","GSW"],["UTA","LAL"],["DET","IND"],
       ["TOR","PHI"],["MIL","BKN"],["BOS","MIA"],["NYK","BKN"],["LAL","PHX"],
+    ];
+
+    // ── Firebase Config ──────────────────────────────────────────────────────────
+    // Setup: go to console.firebase.google.com → New Project → Web App → copy config here
+    // Enable: Authentication > Email/Password  AND  Firestore Database
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBa8wrrnzBq0oRVmRo5ZyUwGS44rOSlbOY",
+      authDomain: "nab-catchup.firebaseapp.com",
+      projectId: "nab-catchup",
+      storageBucket: "nab-catchup.firebasestorage.app",
+      messagingSenderId: "114905014196",
+      appId: "1:114905014196:web:b2455b6fd1b6ff2bd0dce1",
+      measurementId: "G-2743JPQR2K",
+    };
+    const FB_READY = FIREBASE_CONFIG.apiKey.length > 0;
+    let fbAuth = null, fbDb = null;
+    if (FB_READY) {
+      try {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        fbAuth = firebase.auth();
+        fbDb   = firebase.firestore();
+      } catch(e) { console.warn("Firebase init error:", e); }
+    }
+
+    // ── Avatar options ───────────────────────────────────────────────────────────
+    const AVATARS = [
+      { id:"bball",   emoji:"🏀", bg:"#f97316" },
+      { id:"trophy",  emoji:"🏆", bg:"#eab308" },
+      { id:"fire",    emoji:"🔥", bg:"#ef4444" },
+      { id:"star",    emoji:"⭐", bg:"#6366f1" },
+      { id:"lion",    emoji:"🦁", bg:"#f59e0b" },
+      { id:"eagle",   emoji:"🦅", bg:"#3b82f6" },
+      { id:"bolt",    emoji:"⚡", bg:"#8b5cf6" },
+      { id:"gem",     emoji:"💎", bg:"#0ea5e9" },
+      { id:"rocket",  emoji:"🚀", bg:"#10b981" },
+      { id:"crown",   emoji:"👑", bg:"#d97706" },
+      { id:"wolf",    emoji:"🐺", bg:"#64748b" },
+      { id:"goat",    emoji:"🐐", bg:"#16a34a" },
     ];
 
     // ── Data normalisation ───────────────────────────────────────────────────────
@@ -1438,6 +1481,252 @@
     }
 
     // ── Standings Panel ───────────────────────────────────────────────────────────
+    // ── Account Modal ─────────────────────────────────────────────────────────────
+    function AccountModal({ onClose, currentUser, setCurrentUser, favTeams, favPlayers, setFavTeams, setFavPlayers }) {
+      const isMobile = useWindowWidth() < 600;
+      const [tab,       setTab]       = useState(currentUser ? "profile" : "login");
+      const [username,  setUsername]  = useState("");
+      const [password,  setPassword]  = useState("");
+      const [error,     setError]     = useState("");
+      const [loading,   setLoading]   = useState(false);
+      const [selAvatar, setSelAvatar] = useState(currentUser?.avatar ?? AVATARS[0].id);
+      const [saved,     setSaved]     = useState(false);
+
+      const toEmail = u => `${u.trim().toLowerCase().replace(/[^a-z0-9]/g,"_")}@nbacatchup.local`;
+
+      const handleSignUp = async () => {
+        if (!FB_READY) return;
+        if (username.trim().length < 3) { setError("Username must be at least 3 characters"); return; }
+        if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+        setLoading(true); setError("");
+        try {
+          const cred = await fbAuth.createUserWithEmailAndPassword(toEmail(username), password);
+          const av = AVATARS.find(a => a.id === selAvatar) ?? AVATARS[0];
+          const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers };
+          await fbDb.collection("users").doc(cred.user.uid).set(profile);
+          setCurrentUser({ uid: cred.user.uid, ...profile });
+          onClose();
+        } catch(e) {
+          setError(e.code === "auth/email-already-in-use" ? "Username already taken" : e.message);
+        }
+        setLoading(false);
+      };
+
+      const handleLogin = async () => {
+        if (!FB_READY) return;
+        if (!username.trim() || !password) { setError("Please enter username and password"); return; }
+        setLoading(true); setError("");
+        try {
+          const cred = await fbAuth.signInWithEmailAndPassword(toEmail(username), password);
+          const doc = await fbDb.collection("users").doc(cred.user.uid).get();
+          if (doc.exists) {
+            const data = doc.data();
+            setCurrentUser({ uid: cred.user.uid, ...data });
+            if (data.favTeams)   setFavTeams(data.favTeams);
+            if (data.favPlayers) setFavPlayers(data.favPlayers);
+          } else {
+            setCurrentUser({ uid: cred.user.uid, username: username.trim(), avatar: AVATARS[0].id, favTeams, favPlayers });
+          }
+          onClose();
+        } catch(e) {
+          setError(e.code === "auth/user-not-found" || e.code === "auth/wrong-password" || e.code === "auth/invalid-credential"
+            ? "Wrong username or password" : e.message);
+        }
+        setLoading(false);
+      };
+
+      const handleLogout = async () => {
+        if (fbAuth) await fbAuth.signOut();
+        setCurrentUser(null);
+        onClose();
+      };
+
+      const handleSaveAvatar = async () => {
+        if (!currentUser || !fbDb) return;
+        setLoading(true);
+        await fbDb.collection("users").doc(currentUser.uid).update({ avatar: selAvatar });
+        setCurrentUser(prev => ({ ...prev, avatar: selAvatar }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        setLoading(false);
+      };
+
+      const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
+      const curAv = av(currentUser?.avatar ?? AVATARS[0].id);
+
+      // Overlay close on backdrop click
+      const handleBackdrop = e => { if (e.target === e.currentTarget) onClose(); };
+
+      return (
+        <div onClick={handleBackdrop} style={{ position:"fixed", inset:0, zIndex:1000,
+          background:"rgba(15,23,42,0.55)", backdropFilter:"blur(4px)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div className="modal-anim" style={{ background:"white", borderRadius:24, width:"100%", maxWidth:420,
+            boxShadow:"0 24px 80px rgba(0,0,0,0.25)", overflow:"hidden" }}>
+
+            {/* Header */}
+            <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)", padding:"20px 24px 18px",
+              display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                {currentUser && (
+                  <div style={{ width:42, height:42, borderRadius:"50%", background:av(currentUser.avatar).bg,
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:22,
+                    border:"2px solid rgba(255,255,255,0.35)", flexShrink:0 }}>
+                    {av(currentUser.avatar).emoji}
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize:16, fontWeight:900, color:"white" }}>
+                    {currentUser ? `Hey, ${currentUser.username}!` : "🏀 NBA CatchUp Account"}
+                  </div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:2 }}>
+                    {currentUser ? "Your profile & settings" : "Save your favourites across devices"}
+                  </div>
+                </div>
+              </div>
+              <button onClick={onClose} style={{ background:"rgba(255,255,255,0.12)", border:"none",
+                color:"white", borderRadius:10, width:32, height:32, fontSize:16,
+                display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>✕</button>
+            </div>
+
+            {/* Firebase not configured notice */}
+            {!FB_READY && (
+              <div style={{ padding:"20px 24px" }}>
+                <div style={{ background:"#fffbeb", borderRadius:14, padding:"16px", border:"1px solid #fde68a", marginBottom:16 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:"#92400e", marginBottom:8 }}>⚙️ One-time Setup Required</div>
+                  <div style={{ fontSize:12, color:"#78350f", lineHeight:1.6 }}>
+                    To enable accounts across devices, set up a free Firebase project:<br/>
+                    <br/>
+                    <b>1.</b> Go to <b>console.firebase.google.com</b><br/>
+                    <b>2.</b> Click <b>"Add project"</b> → name it anything<br/>
+                    <b>3.</b> Add a <b>Web app</b> → copy the config object<br/>
+                    <b>4.</b> Enable <b>Authentication → Email/Password</b><br/>
+                    <b>5.</b> Create <b>Firestore Database</b> (Start in test mode)<br/>
+                    <b>6.</b> Paste the config into the <code>FIREBASE_CONFIG</code> in the HTML file
+                  </div>
+                </div>
+                <button onClick={onClose} style={{ width:"100%", background:"#1e3a8a", color:"white",
+                  borderRadius:12, padding:"12px", fontWeight:700, fontSize:14 }}>Got it</button>
+              </div>
+            )}
+
+            {/* Tabs — only when Firebase ready */}
+            {FB_READY && !currentUser && (
+              <div style={{ display:"flex", borderBottom:"1px solid #e2e8f0" }}>
+                {[["login","Sign In"],["signup","Create Account"]].map(([id, label]) => (
+                  <button key={id} onClick={() => { setTab(id); setError(""); }} style={{ flex:1, padding:"14px 0",
+                    fontWeight:700, fontSize:13, background:"none", border:"none",
+                    color: tab===id ? "#1e3a8a" : "#94a3b8",
+                    borderBottom: tab===id ? "2px solid #3b82f6" : "2px solid transparent",
+                    cursor:"pointer", transition:"all 0.15s" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Login / Signup form */}
+            {FB_READY && !currentUser && (
+              <div style={{ padding:"24px 24px 20px" }}>
+                {/* Avatar picker — signup only */}
+                {tab === "signup" && (
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#64748b", letterSpacing:"0.08em", marginBottom:10 }}>PICK YOUR AVATAR</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
+                      {AVATARS.map(a => (
+                        <button key={a.id} onClick={() => setSelAvatar(a.id)} style={{ aspect:"1/1", borderRadius:12,
+                          background: selAvatar===a.id ? a.bg : "#f1f5f9",
+                          border: selAvatar===a.id ? `2px solid ${a.bg}` : "2px solid transparent",
+                          fontSize:20, display:"flex", alignItems:"center", justifyContent:"center",
+                          boxShadow: selAvatar===a.id ? `0 4px 12px ${a.bg}55` : "none",
+                          transform: selAvatar===a.id ? "scale(1.1)" : "scale(1)",
+                          transition:"all 0.15s", cursor:"pointer" }}>
+                          {a.emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#64748b", letterSpacing:"0.08em", marginBottom:6 }}>USERNAME</div>
+                    <input value={username} onChange={e => setUsername(e.target.value)}
+                      onKeyDown={e => e.key==="Enter" && (tab==="login" ? handleLogin() : handleSignUp())}
+                      placeholder="Enter username…" style={{ width:"100%", padding:"11px 14px", borderRadius:12,
+                        border:"1.5px solid #e2e8f0", fontSize:14, fontWeight:600, color:"#1e3a8a",
+                        outline:"none", transition:"border 0.15s" }}
+                      onFocus={e => e.target.style.borderColor="#3b82f6"}
+                      onBlur={e => e.target.style.borderColor="#e2e8f0"} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#64748b", letterSpacing:"0.08em", marginBottom:6 }}>PASSWORD</div>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                      onKeyDown={e => e.key==="Enter" && (tab==="login" ? handleLogin() : handleSignUp())}
+                      placeholder="Enter password…" style={{ width:"100%", padding:"11px 14px", borderRadius:12,
+                        border:"1.5px solid #e2e8f0", fontSize:14, fontWeight:600, color:"#1e3a8a",
+                        outline:"none", transition:"border 0.15s" }}
+                      onFocus={e => e.target.style.borderColor="#3b82f6"}
+                      onBlur={e => e.target.style.borderColor="#e2e8f0"} />
+                  </div>
+                  {error && <div style={{ background:"#fef2f2", borderRadius:10, padding:"10px 14px",
+                    fontSize:12, fontWeight:600, color:"#dc2626", border:"1px solid #fecaca" }}>{error}</div>}
+                  <button onClick={tab==="login" ? handleLogin : handleSignUp} disabled={loading}
+                    style={{ background:"linear-gradient(135deg,#1e3a8a,#3b82f6)", color:"white",
+                      borderRadius:12, padding:"13px", fontWeight:800, fontSize:14, border:"none",
+                      opacity:loading?0.7:1, cursor:loading?"wait":"pointer",
+                      boxShadow:"0 4px 16px rgba(59,130,246,0.4)", transition:"opacity 0.15s" }}>
+                    {loading ? "⏳ Please wait…" : tab==="login" ? "Sign In" : "Create Account"}
+                  </button>
+                  {tab==="signup" && <div style={{ fontSize:11, color:"#94a3b8", textAlign:"center", lineHeight:1.5 }}>
+                    Your current favourite teams & players will be saved to your new account.
+                  </div>}
+                </div>
+              </div>
+            )}
+
+            {/* Profile view — logged in */}
+            {FB_READY && currentUser && (
+              <div style={{ padding:"24px 24px 20px" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#64748b", letterSpacing:"0.08em", marginBottom:12 }}>CHANGE AVATAR</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8, marginBottom:20 }}>
+                  {AVATARS.map(a => (
+                    <button key={a.id} onClick={() => setSelAvatar(a.id)} style={{ aspect:"1/1", borderRadius:12,
+                      background: selAvatar===a.id ? a.bg : "#f1f5f9",
+                      border: selAvatar===a.id ? `2px solid ${a.bg}` : "2px solid transparent",
+                      fontSize:20, display:"flex", alignItems:"center", justifyContent:"center",
+                      boxShadow: selAvatar===a.id ? `0 4px 12px ${a.bg}55` : "none",
+                      transform: selAvatar===a.id ? "scale(1.1)" : "scale(1)",
+                      transition:"all 0.15s", cursor:"pointer" }}>
+                      {a.emoji}
+                    </button>
+                  ))}
+                </div>
+                {selAvatar !== currentUser.avatar && (
+                  <button onClick={handleSaveAvatar} disabled={loading} style={{ width:"100%",
+                    background:"linear-gradient(135deg,#1e3a8a,#3b82f6)", color:"white", borderRadius:12,
+                    padding:"12px", fontWeight:700, fontSize:13, border:"none",
+                    opacity:loading?0.7:1, cursor:loading?"wait":"pointer", marginBottom:12,
+                    boxShadow:"0 4px 14px rgba(59,130,246,0.35)" }}>
+                    {saved ? "✅ Saved!" : loading ? "Saving…" : "Save Avatar"}
+                  </button>
+                )}
+                <div style={{ background:"#f8faff", borderRadius:12, padding:"12px 14px", marginBottom:16,
+                  border:"1px solid #e2e8f0", fontSize:12, color:"#64748b", lineHeight:1.6 }}>
+                  <b style={{ color:"#1e3a8a" }}>Favourites sync</b> — any changes to your favourite teams & players are automatically saved to your account.
+                </div>
+                <button onClick={handleLogout} style={{ width:"100%", background:"#fef2f2",
+                  color:"#dc2626", borderRadius:12, padding:"12px", fontWeight:700, fontSize:13,
+                  border:"1px solid #fecaca", cursor:"pointer", transition:"all 0.15s" }}>
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     function StandingsPanel({ standings, spoilerMode }) {
       const isMobile = useWindowWidth() < 600;
       if (spoilerMode) return null;
@@ -2425,6 +2714,8 @@
       const [standings,     setStandings]     = useState({});
       const [favTeams,    setFavTeams]    = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-teams")??"[]"); } catch { return []; } });
       const [favPlayers,  setFavPlayers]  = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-players")??"[]"); } catch { return []; } });
+      const [currentUser,  setCurrentUser]  = useState(null);
+      const [accountOpen,  setAccountOpen]  = useState(false);
 
       const gameCacheRef = useRef({});
       useEffect(() => { gameCacheRef.current = gameCache; }, [gameCache]);
@@ -2433,6 +2724,16 @@
       useEffect(() => { localStorage.setItem("nba-fav-teams",   JSON.stringify(favTeams));   }, [favTeams]);
       useEffect(() => { localStorage.setItem("nba-fav-players", JSON.stringify(favPlayers)); }, [favPlayers]);
       useEffect(() => { localStorage.setItem("nba-spoiler-mode", String(spoilerMode)); }, [spoilerMode]);
+      // Sync favorites to Firestore whenever they change (if logged in)
+      useEffect(() => {
+        if (!currentUser || !fbDb) return;
+        const t = setTimeout(() => {
+          fbDb.collection("users").doc(currentUser.uid)
+            .update({ favTeams, favPlayers })
+            .catch(() => {});
+        }, 800);
+        return () => clearTimeout(t);
+      }, [favTeams, favPlayers, currentUser]);
       // Temporary placeholder: compute from the standard 7-day DATES window only.
       // Explicitly scoped to DATES so that extra dates loaded by other views
       // (e.g. DontMiss) never pollute the placeholder with non-season data.
@@ -2513,6 +2814,19 @@
               </div>
               {isMobile && <div style={{ flex:1 }} />}
               {!isMobile && <div style={{ flex:1 }} />}
+              {/* Account button */}
+              <button onClick={() => setAccountOpen(true)} style={{ display:"flex", alignItems:"center",
+                gap:isMobile?4:6, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
+                background: currentUser ? AVATARS.find(a=>a.id===currentUser.avatar)?.bg ?? "#1e3a8a" : "#f0f6ff",
+                color: currentUser ? "white" : "#3b82f6",
+                fontSize:isMobile?10:12, fontWeight:700, flexShrink:0,
+                boxShadow: currentUser ? "0 2px 10px rgba(0,0,0,0.2)" : "none",
+                transition:"all 0.2s" }}>
+                <span style={{ fontSize:isMobile?14:15 }}>
+                  {currentUser ? (AVATARS.find(a=>a.id===currentUser.avatar)?.emoji ?? "👤") : "👤"}
+                </span>
+                {!isMobile && <span>{currentUser ? currentUser.username : "Sign In"}</span>}
+              </button>
               <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
                 gap:isMobile?4:7, padding:isMobile?"6px 12px":"8px 18px", borderRadius:20,
                 background:spoilerMode?"#1e3a8a":"#f0f6ff", color:spoilerMode?"white":"#3b82f6",
@@ -2553,6 +2867,17 @@
               </div>
             )}
           </div>
+          {accountOpen && (
+            <AccountModal
+              onClose={() => setAccountOpen(false)}
+              currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
+              favTeams={favTeams}
+              favPlayers={favPlayers}
+              setFavTeams={setFavTeams}
+              setFavPlayers={setFavPlayers}
+            />
+          )}
         </div>
       );
     }
