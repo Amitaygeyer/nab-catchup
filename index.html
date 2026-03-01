@@ -348,16 +348,25 @@
     function fromGamesStats(games, stats) {
       return games.map(g => {
         const gs = stats.filter(s => s.game?.id === g.id);
+        const isFinal = g.status === "Final";
+        // Normalise score: for non-Final games, treat 0 as null (game hasn't started yet)
+        // The /games API always returns 0 for unplayed games; null makes downstream
+        // "upcoming" checks (score == null) work correctly everywhere.
+        const hScore = isFinal ? g.home_team_score    : (g.home_team_score    > 0 ? g.home_team_score    : null);
+        const vScore = isFinal ? g.visitor_team_score : (g.visitor_team_score > 0 ? g.visitor_team_score : null);
         return {
           id: g.id, status: g.status,
-          home:    { ...g.home_team,    score: g.home_team_score,    players: byPts(gs.filter(s => s.team?.id === g.home_team?.id)) },
-          visitor: { ...g.visitor_team, score: g.visitor_team_score, players: byPts(gs.filter(s => s.team?.id === g.visitor_team?.id)) },
+          home:    { ...g.home_team,    score: hScore, players: byPts(gs.filter(s => s.team?.id === g.home_team?.id)) },
+          visitor: { ...g.visitor_team, score: vScore, players: byPts(gs.filter(s => s.team?.id === g.visitor_team?.id)) },
         };
       });
     }
     async function loadGames(date) {
       const box = await fetchAll(`/box_scores?date=${date}`);
-      if (!box._err) return { games: fromBoxScores(box.data ?? []) };
+      // Only use box_scores if it returned actual game data.
+      // For future dates and early-day loads, box_scores returns [] (no error but empty),
+      // so we must fall through to /games which includes all scheduled games.
+      if (!box._err && (box.data ?? []).length > 0) return { games: fromBoxScores(box.data) };
       const [gRes, sRes] = await Promise.all([fetchAll(`/games?dates[]=${date}`), fetchAll(`/stats?dates[]=${date}`)]);
       if (gRes._err) return { games: null, errCode: gRes._err };
       return { games: fromGamesStats(gRes.data ?? [], sRes?.data && !sRes._err ? sRes.data : []) };
@@ -1986,13 +1995,21 @@
     function UpcomingKeyMatchups({ gameCache, loadDate, standings }) {
       const isMobile = useWindowWidth() < 600;
       const KEY_DATES = FUTURE_DATES.slice(0, 3); // next 3 days
+      const [ready, setReady] = useState(false);
 
-      // Load the 3 future dates on mount
+      // Load the 3 future dates on mount; mark ready only once ALL are in cache
       useEffect(() => {
         KEY_DATES.forEach(d => {
           if (gameCache[d] === undefined) loadDate(d);
         });
       }, []);
+
+      // Become ready once all 3 dates are loaded — prevents mid-load flicker
+      useEffect(() => {
+        if (!ready && KEY_DATES.every(d => gameCache[d] !== undefined)) {
+          setReady(true);
+        }
+      }, [gameCache]);
 
       // Rank teams by win% from standings
       const ranked = React.useMemo(() => {
@@ -2031,7 +2048,7 @@
           .slice(0, 6);
       }, [gameCache, ranked, standings]);
 
-      if (keyGames.length === 0) return null;
+      if (!ready || keyGames.length === 0) return null;
 
       const typeColors = {
         "TOP CLASH":  { bg:"linear-gradient(135deg,#7c3aed,#4f46e5)", pill:"#ede9fe", pillText:"#5b21b6" },
@@ -2704,6 +2721,522 @@
       }
     }
 
+    // ── Stakes View ───────────────────────────────────────────────────────────────
+    function StakesView({ gameCache, loadDate, currentUser, standings }) {
+      const isMobile = useWindowWidth() < 600;
+      const [tab,          setTab]          = useState("vote");
+      const [votes,        setVotes]        = useState({});   // key: `${date}_${gameId}` → { [userId]: {teamAbbr,username,avatar} }
+      const [loadingVotes, setLoadingVotes] = useState(true);
+      const [submitting,   setSubmitting]   = useState(null); // gameId being submitted
+
+      // Vote dates: next 3 future days. Result dates: past 3 days. Leaderboard: all of both.
+      const VOTE_DATES   = [DATES[0], ...FUTURE_DATES.slice(0, 2)]; // today + next 2 days
+      const RESULT_DATES = DATES.slice(1, 4); // yesterday + 2 more past days
+      const ALL_DATES    = [...new Set([...VOTE_DATES, ...RESULT_DATES])];
+
+      // Load game data for all relevant dates
+      useEffect(() => {
+        ALL_DATES.forEach(d => { if (gameCache[d] === undefined) loadDate(d); });
+      }, []);
+
+      // Firestore real-time votes listener
+      useEffect(() => {
+        if (!fbDb) { setLoadingVotes(false); return; }
+        const q = fbDb.collection("votes").where("date", "in", ALL_DATES);
+        const unsub = q.onSnapshot(snap => {
+          const v = {};
+          snap.docs.forEach(doc => {
+            const d = doc.data();
+            const key = `${d.date}_${d.gameId}`;
+            if (!v[key]) v[key] = {};
+            v[key][d.userId] = { teamAbbr: d.teamAbbr, username: d.username, avatar: d.avatar ?? AVATARS[0].id };
+          });
+          setVotes(v);
+          setLoadingVotes(false);
+        }, err => { console.error("Votes err:", err); setLoadingVotes(false); });
+        return () => unsub();
+      }, []);
+
+      // Submit / change a vote
+      const submitVote = async (gameId, date, teamAbbr) => {
+        if (!currentUser || !fbDb) return;
+        setSubmitting(gameId);
+        try {
+          const voteId = `${date}_${gameId}_${currentUser.uid}`;
+          await fbDb.collection("votes").doc(voteId).set({
+            userId:    currentUser.uid,
+            username:  currentUser.username,
+            avatar:    currentUser.avatar ?? AVATARS[0].id,
+            teamAbbr, date,
+            gameId:    String(gameId),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch(e) { console.error("Vote submit err:", e); }
+        setSubmitting(null);
+      };
+
+      // Israeli time helpers
+      const getIsraelInfo = () => {
+        const now = new Date();
+        const fmt = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Jerusalem", year:"numeric", month:"2-digit", day:"2-digit",
+          hour:"2-digit", minute:"2-digit", hour12: false,
+        });
+        const parts = fmt.formatToParts(now);
+        const get = t => parts.find(p => p.type === t)?.value ?? "0";
+        return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: parseInt(get("hour")) % 24, minute: parseInt(get("minute")) };
+      };
+
+      const isVotingOpen = (gameDate) => {
+        const { date: todayIL, hour, minute } = getIsraelInfo();
+        if (gameDate < todayIL) return false;
+        if (gameDate === todayIL) return hour < 21;
+        return true; // future dates always open
+      };
+
+      const votingClosesIn = (gameDate) => {
+        const { date: todayIL, hour, minute } = getIsraelInfo();
+        if (gameDate !== todayIL) return null; // not today, no countdown needed
+        const minsLeft = (21 * 60) - (hour * 60 + minute);
+        if (minsLeft <= 0) return null;
+        if (minsLeft < 60) return `${minsLeft}m left to vote`;
+        return `${Math.floor(minsLeft/60)}h ${minsLeft%60}m left to vote`;
+      };
+
+      // Determine game winner
+      const getWinner = g =>
+        g.status === "Final" && g.home.score != null && g.visitor.score != null
+          ? ((g.home.score > g.visitor.score) ? g.home.abbreviation : g.visitor.abbreviation)
+          : null;
+
+      // Leaderboard from result dates
+      const leaderboard = React.useMemo(() => {
+        const stats = {};
+        RESULT_DATES.forEach(date => {
+          (gameCache[date] ?? []).forEach(game => {
+            const winner = getWinner(game);
+            if (!winner) return;
+            const key = `${date}_${game.id}`;
+            Object.entries(votes[key] ?? {}).forEach(([uid, vote]) => {
+              if (!stats[uid]) stats[uid] = { username: vote.username, avatar: vote.avatar, correct: 0, total: 0 };
+              stats[uid].total++;
+              if (vote.teamAbbr === winner) stats[uid].correct++;
+            });
+          });
+        });
+        return Object.entries(stats)
+          .map(([uid, s]) => ({ uid, ...s, pct: s.total > 0 ? Math.round(s.correct / s.total * 100) : 0 }))
+          .sort((a, b) => b.pct !== a.pct ? b.pct - a.pct : b.correct - a.correct || b.total - a.total);
+      }, [votes, gameCache]);
+
+      const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
+      const myVoteFor = (gameId, date) => votes[`${date}_${gameId}`]?.[currentUser?.uid]?.teamAbbr ?? null;
+
+      // ── Avatar chip row ──
+      const VoterChips = ({ voters, limit = 5 }) => {
+        const list = Object.values(voters ?? {}).slice(0, limit);
+        if (!list.length) return null;
+        return (
+          <div style={{ display:"flex", gap:2, flexWrap:"wrap" }}>
+            {list.map((v, i) => {
+              const a = av(v.avatar);
+              return (
+                <div key={i} title={v.username} style={{ width:20, height:20, borderRadius:"50%",
+                  background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:10, border:"1.5px solid white", boxShadow:"0 1px 3px rgba(0,0,0,0.15)" }}>
+                  {a.emoji}
+                </div>
+              );
+            })}
+          </div>
+        );
+      };
+
+      // ── Vote card for a single upcoming game ──
+      const VoteCard = ({ game, date }) => {
+        const voteOpen    = isVotingOpen(date);
+        const countdown   = votingClosesIn(date);
+        const myVote      = myVoteFor(game.id, date);
+        const allVotes    = votes[`${date}_${game.id}`] ?? {};
+        const homeVoters  = Object.fromEntries(Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.home.abbreviation));
+        const awayVoters  = Object.fromEntries(Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.visitor.abbreviation));
+        const totalVotes  = Object.keys(allVotes).length;
+        const homePct     = totalVotes > 0 ? Math.round(Object.keys(homeVoters).length / totalVotes * 100) : 50;
+        const awayPct     = 100 - homePct;
+        const gt          = fmtGameTime(game.status);
+        const isBusy      = submitting === game.id;
+
+        const pickTeam = async (abbr) => {
+          if (!voteOpen || !currentUser) return;
+          await submitVote(game.id, date, abbr);
+        };
+
+        return (
+          <div style={{ background:"white", borderRadius:16, border:"1px solid #e0e7ff",
+            boxShadow:"0 2px 16px rgba(99,102,241,0.08)", overflow:"hidden", marginBottom:12 }}>
+            {/* Date + time bar */}
+            <div style={{ background:"linear-gradient(135deg,#1e1b4b,#3730a3)", padding:"9px 14px",
+              display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, flexWrap:"wrap" }}>
+              <span style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.65)", letterSpacing:"0.08em" }}>
+                {fmtDate(date).toUpperCase()}
+              </span>
+              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                {countdown && <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#fbbf24",
+                  background:"rgba(251,191,36,0.15)", borderRadius:20, padding:"2px 8px" }}>
+                  ⏱ {countdown}
+                </span>}
+                {gt && <span style={{ fontSize:isMobile?10:11, fontWeight:700, color:"white" }}>
+                  {gt.time} {gt.ampm} {gt.tz}
+                </span>}
+                {!voteOpen && <span style={{ fontSize:9, fontWeight:800, color:"#f87171",
+                  background:"rgba(248,113,113,0.2)", borderRadius:20, padding:"2px 8px", border:"1px solid rgba(248,113,113,0.3)" }}>
+                  🔒 CLOSED
+                </span>}
+              </div>
+            </div>
+
+            {/* Team picker */}
+            <div style={{ display:"flex", alignItems:"stretch" }}>
+              {/* Away team */}
+              <button onClick={() => pickTeam(game.visitor.abbreviation)} disabled={!voteOpen || !currentUser || isBusy}
+                style={{ flex:1, padding:isMobile?"16px 8px 14px":"18px 14px", border:"none",
+                  borderRight:"1px solid #e0e7ff", cursor: voteOpen && currentUser ? "pointer" : "default",
+                  transition:"background 0.15s",
+                  background: myVote === game.visitor.abbreviation ? "linear-gradient(180deg,#eef2ff,#f5f3ff)" : "white" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
+                  <TeamLogo abbr={game.visitor.abbreviation} size={isMobile?44:58} />
+                  <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a" }}>{game.visitor.abbreviation}</div>
+                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%", textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.visitor.city}</div>
+                  {standings?.[game.visitor.abbreviation] && (
+                    <div style={{ fontSize:isMobile?9:10, color:"#94a3b8", fontWeight:700 }}>
+                      {standings[game.visitor.abbreviation].wins}–{standings[game.visitor.abbreviation].losses}
+                    </div>
+                  )}
+                  <VoterChips voters={awayVoters} />
+                  {myVote === game.visitor.abbreviation && (
+                    <div style={{ background:"#4f46e5", color:"white", borderRadius:20, padding:"3px 10px",
+                      fontSize:isMobile?9:10, fontWeight:800, letterSpacing:"0.05em" }}>✓ MY PICK</div>
+                  )}
+                </div>
+              </button>
+
+              {/* VS / vote count centre */}
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                padding:"0 8px", gap:5, minWidth:isMobile?44:56, flexShrink:0 }}>
+                <div style={{ fontSize:isMobile?10:11, fontWeight:900, color:"#c7d2fe", letterSpacing:"0.1em" }}>VS</div>
+                {totalVotes > 0 && (
+                  <div style={{ fontSize:isMobile?8:9, fontWeight:700, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>
+                    {totalVotes}<br/>{totalVotes !== 1 ? "votes" : "vote"}
+                  </div>
+                )}
+                {isBusy && <div style={{ width:18, height:18, borderRadius:"50%",
+                  border:"2.5px solid #4f46e5", borderTopColor:"transparent",
+                  animation:"spin 0.7s linear infinite" }} />}
+              </div>
+
+              {/* Home team */}
+              <button onClick={() => pickTeam(game.home.abbreviation)} disabled={!voteOpen || !currentUser || isBusy}
+                style={{ flex:1, padding:isMobile?"16px 8px 14px":"18px 14px", border:"none",
+                  borderLeft:"1px solid #e0e7ff", cursor: voteOpen && currentUser ? "pointer" : "default",
+                  transition:"background 0.15s",
+                  background: myVote === game.home.abbreviation ? "linear-gradient(180deg,#eef2ff,#f5f3ff)" : "white" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
+                  <TeamLogo abbr={game.home.abbreviation} size={isMobile?44:58} />
+                  <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a" }}>{game.home.abbreviation}</div>
+                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%", textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.home.city} 🏠</div>
+                  {standings?.[game.home.abbreviation] && (
+                    <div style={{ fontSize:isMobile?9:10, color:"#94a3b8", fontWeight:700 }}>
+                      {standings[game.home.abbreviation].wins}–{standings[game.home.abbreviation].losses}
+                    </div>
+                  )}
+                  <VoterChips voters={homeVoters} />
+                  {myVote === game.home.abbreviation && (
+                    <div style={{ background:"#4f46e5", color:"white", borderRadius:20, padding:"3px 10px",
+                      fontSize:isMobile?9:10, fontWeight:800, letterSpacing:"0.05em" }}>MY PICK ✓</div>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Vote bar + not logged in prompt */}
+            {totalVotes > 0 && (
+              <div style={{ padding:"8px 14px 10px", borderTop:"1px solid #f0f4ff" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                  <span style={{ fontSize:9, fontWeight:700, color:"#64748b" }}>{game.visitor.abbreviation} {awayPct}%</span>
+                  <span style={{ fontSize:9, fontWeight:700, color:"#64748b" }}>{homePct}% {game.home.abbreviation}</span>
+                </div>
+                <div style={{ height:5, borderRadius:4, background:"#e0e7ff", overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${awayPct}%`, background:"linear-gradient(90deg,#6366f1,#818cf8)", transition:"width 0.5s" }} />
+                </div>
+              </div>
+            )}
+            {!currentUser && voteOpen && (
+              <div style={{ padding:"8px 14px", background:"#fffbeb", borderTop:"1px solid #fde68a",
+                fontSize:11, fontWeight:600, color:"#92400e", textAlign:"center" }}>
+                Sign in to place your pick 👆
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // ── Result card for a finished game ──
+      const ResultCard = ({ game, date }) => {
+        const winner   = getWinner(game);
+        const allVotes = votes[`${date}_${game.id}`] ?? {};
+        const myVote   = allVotes[currentUser?.uid]?.teamAbbr ?? null;
+        const myResult = myVote && winner ? (myVote === winner ? "correct" : "wrong") : null;
+        const voterList = Object.entries(allVotes);
+        if (!winner && voterList.length === 0) return null; // no data yet
+
+        return (
+          <div style={{ background:"white", borderRadius:14, border:"1px solid #e2e8f0",
+            boxShadow:"0 1px 8px rgba(0,0,0,0.05)", marginBottom:10, overflow:"hidden" }}>
+            {/* Score header */}
+            <div style={{ background: winner ? "linear-gradient(135deg,#0f172a,#1e3a8a)" : "#f8faff",
+              padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+              <TeamLogo abbr={game.visitor.abbreviation} size={22} />
+              <span style={{ fontSize:isMobile?12:13, fontWeight:800,
+                color: winner === game.visitor.abbreviation ? "white" : "rgba(255,255,255,0.45)" }}>
+                {game.visitor.abbreviation}
+              </span>
+              <span style={{ fontSize:isMobile?13:15, fontWeight:900, color:"white", flex:1, textAlign:"center" }}>
+                {game.visitor.score ?? "?"} – {game.home.score ?? "?"}
+              </span>
+              <span style={{ fontSize:isMobile?12:13, fontWeight:800,
+                color: winner === game.home.abbreviation ? "white" : "rgba(255,255,255,0.45)" }}>
+                {game.home.abbreviation}
+              </span>
+              <TeamLogo abbr={game.home.abbreviation} size={22} />
+              {myResult && (
+                <span style={{ fontSize:12, fontWeight:900,
+                  color: myResult === "correct" ? "#4ade80" : "#f87171", marginLeft:4 }}>
+                  {myResult === "correct" ? "✅" : "❌"}
+                </span>
+              )}
+            </div>
+            {/* Voter results */}
+            {voterList.length > 0 && (
+              <div style={{ padding:"8px 14px", display:"flex", flexWrap:"wrap", gap:6 }}>
+                {voterList.map(([uid, vote]) => {
+                  const correct = winner ? vote.teamAbbr === winner : null;
+                  const a = av(vote.avatar);
+                  return (
+                    <div key={uid} title={`${vote.username} → ${vote.teamAbbr}`}
+                      style={{ display:"flex", alignItems:"center", gap:5, background: correct === true ? "#f0fdf4" : correct === false ? "#fef2f2" : "#f8faff",
+                        borderRadius:20, padding:"4px 10px 4px 4px",
+                        border:`1px solid ${correct === true ? "#bbf7d0" : correct === false ? "#fecaca" : "#e2e8f0"}` }}>
+                      <div style={{ width:22, height:22, borderRadius:"50%", background:a.bg,
+                        display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, flexShrink:0 }}>
+                        {a.emoji}
+                      </div>
+                      <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#1e3a8a" }}>{vote.username}</span>
+                      <TeamLogo abbr={vote.teamAbbr} size={14} />
+                      {correct !== null && <span style={{ fontSize:10 }}>{correct ? "✅" : "❌"}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {voterList.length === 0 && (
+              <div style={{ padding:"8px 14px", fontSize:11, color:"#94a3b8", fontStyle:"italic" }}>No picks for this game</div>
+            )}
+          </div>
+        );
+      };
+
+      // ── Combined loading: Firestore + all vote-date game caches ──────────────────
+      // Firestore fires instantly (even empty). We must ALSO wait for game data,
+      // otherwise upcomingGames appears empty and "no games" flashes prematurely.
+      const voteGamesLoading = VOTE_DATES.some(d => gameCache[d] === undefined);
+      const isLoading = loadingVotes || voteGamesLoading;
+
+      // ── Find the single NEXT upcoming gameday to vote on ─────────────────────────
+      // Walk forward through VOTE_DATES, return the first date that has games where
+      // scores are still null (i.e. tip-off hasn't happened yet).
+      const nextVoteDay = React.useMemo(() => {
+        for (const d of VOTE_DATES) {
+          if (gameCache[d] === undefined) continue; // still loading this date
+          const upcoming = (gameCache[d] ?? []).filter(g =>
+            g.status !== "Final" &&
+            (g.home.score    == null || g.home.score    === 0) &&
+            (g.visitor.score == null || g.visitor.score === 0)
+          );
+          if (upcoming.length > 0) {
+            return {
+              date:  d,
+              label: d === DATES[0] ? "Today" : d === FUTURE_DATES[0] ? "Tomorrow" : fmtDate(d),
+              games: upcoming,
+              open:  isVotingOpen(d),
+            };
+          }
+        }
+        return null;
+      }, [gameCache]);
+
+      // Group games for result tab
+      const resultsByDate = RESULT_DATES.map(d => ({
+        date: d,
+        label: d === DATES[1] ? "Yesterday" : fmtDate(d),
+        games: (gameCache[d] ?? []).filter(g => g.status === "Final"),
+      })).filter(g => g.games.length > 0);
+
+      const medalColor = i => i === 0 ? "#f59e0b" : i === 1 ? "#9ca3af" : i === 2 ? "#cd7c2f" : "#cbd5e1";
+      const medalEmoji = i => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`;
+
+      return (
+        <div style={{ maxWidth:900, margin:"0 auto", padding:isMobile?"14px 12px":"20px 24px" }}>
+          {/* Page header */}
+          <div style={{ marginBottom:20 }}>
+            <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"#1e3a8a", marginBottom:4 }}>🎲 Stakes</h2>
+            <p style={{ fontSize:isMobile?12:13, color:"#64748b", fontWeight:500 }}>
+              Pick the winners · Voting closes at <b>21:00 Israeli time</b> each day · Compete with friends
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display:"flex", gap:isMobile?4:8, marginBottom:20, borderBottom:"2px solid #e2e8f0",
+            paddingBottom:0, overflowX:"auto", WebkitOverflowScrolling:"touch" }} className="mobile-scroll">
+            {[
+              { id:"vote",        label:"🎯 Vote",        sub:"Upcoming" },
+              { id:"results",     label:"📊 Results",     sub:"Last 3 days" },
+              { id:"leaderboard", label:"🏆 Leaderboard", sub:"Rankings" },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:isMobile?"10px 14px 12px":"10px 20px 12px",
+                background:"none", border:"none", flexShrink:0,
+                borderBottom: tab===t.id ? "2px solid #4f46e5" : "2px solid transparent",
+                marginBottom:"-2px", cursor:"pointer", transition:"all 0.15s" }}>
+                <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:tab===t.id?"#4f46e5":"#94a3b8", whiteSpace:"nowrap" }}>{t.label}</div>
+                <div style={{ fontSize:9, color: tab===t.id?"#818cf8":"#cbd5e1", fontWeight:600, marginTop:2 }}>{t.sub}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* ── VOTE TAB ── */}
+          {tab === "vote" && (
+            <div>
+              {isLoading && <div style={{ textAlign:"center", padding:40 }}><Spinner full /></div>}
+              {!isLoading && !nextVoteDay && (
+                <div style={{ textAlign:"center", padding:"60px 24px", background:"white", borderRadius:16,
+                  border:"1px solid #e0e7ff" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>😴</div>
+                  <div style={{ fontWeight:700, color:"#1e3a8a" }}>No upcoming games in the next 3 days</div>
+                  <div style={{ fontSize:13, color:"#94a3b8", marginTop:6 }}>Check back closer to the next game day!</div>
+                </div>
+              )}
+              {!isLoading && nextVoteDay && (
+                <div style={{ marginBottom:24 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                    <h3 style={{ fontSize:isMobile?14:16, fontWeight:900, color:"#1e3a8a" }}>{nextVoteDay.label}</h3>
+                    <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
+                      background: nextVoteDay.open ? "#f0fdf4" : "#fef2f2",
+                      color: nextVoteDay.open ? "#15803d" : "#dc2626",
+                      border: `1px solid ${nextVoteDay.open ? "#bbf7d0" : "#fecaca"}` }}>
+                      {nextVoteDay.open ? "🟢 Voting open" : "🔴 Voting closed"}
+                    </span>
+                  </div>
+                  {nextVoteDay.games.map(g => <VoteCard key={g.id} game={g} date={nextVoteDay.date} />)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── RESULTS TAB ── */}
+          {tab === "results" && (
+            <div>
+              {loadingVotes && <div style={{ textAlign:"center", padding:40 }}><Spinner full /></div>}
+              {!loadingVotes && resultsByDate.length === 0 && (
+                <div style={{ textAlign:"center", padding:"60px 24px", background:"white", borderRadius:16,
+                  border:"1px solid #e0e7ff" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
+                  <div style={{ fontWeight:700, color:"#1e3a8a" }}>No results yet</div>
+                  <div style={{ fontSize:13, color:"#94a3b8", marginTop:6 }}>Results appear after games finish</div>
+                </div>
+              )}
+              {resultsByDate.map(({ date, label, games }) => (
+                <div key={date} style={{ marginBottom:24 }}>
+                  <h3 style={{ fontSize:isMobile?14:16, fontWeight:900, color:"#1e3a8a", marginBottom:12 }}>{label}</h3>
+                  {games.map(g => <ResultCard key={g.id} game={g} date={date} />)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── LEADERBOARD TAB ── */}
+          {tab === "leaderboard" && (
+            <div>
+              {leaderboard.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"60px 24px", background:"white", borderRadius:16,
+                  border:"1px solid #e0e7ff" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>🏆</div>
+                  <div style={{ fontWeight:700, color:"#1e3a8a" }}>Leaderboard coming soon</div>
+                  <div style={{ fontSize:13, color:"#94a3b8", marginTop:6 }}>Make picks and finish games to see rankings!</div>
+                </div>
+              ) : (
+                <div style={{ background:"white", borderRadius:16, border:"1px solid #e0e7ff",
+                  boxShadow:"0 2px 16px rgba(99,102,241,0.07)", overflow:"hidden" }}>
+                  {/* Header */}
+                  <div style={{ background:"linear-gradient(135deg,#1e1b4b,#312e81)", padding:"14px 20px",
+                    display:"flex", gap:isMobile?8:14, alignItems:"center" }}>
+                    <span style={{ width:32, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>RANK</span>
+                    <span style={{ flex:1, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", letterSpacing:"0.08em" }}>PLAYER</span>
+                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>W</span>
+                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>L</span>
+                    <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>%</span>
+                  </div>
+                  {leaderboard.map((user, i) => {
+                    const a = av(user.avatar);
+                    const isMe = user.uid === currentUser?.uid;
+                    const losses = user.total - user.correct;
+                    return (
+                      <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?8:14,
+                        padding:isMobile?"10px 14px":"12px 20px",
+                        background: isMe ? "#f0f4ff" : i % 2 === 0 ? "white" : "#fafbff",
+                        borderBottom: i < leaderboard.length - 1 ? "1px solid #f0f4ff" : "none",
+                        borderLeft: isMe ? "3px solid #4f46e5" : "3px solid transparent" }}>
+                        <div style={{ width:32, textAlign:"center", fontSize:i < 3 ? 18 : 12,
+                          fontWeight:900, color:medalColor(i), flexShrink:0 }}>
+                          {medalEmoji(i)}
+                        </div>
+                        <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+                          <div style={{ width:isMobile?28:34, height:isMobile?28:34, borderRadius:"50%",
+                            background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
+                            fontSize:isMobile?14:16, flexShrink:0,
+                            boxShadow: isMe ? "0 0 0 2px #4f46e5" : "none" }}>
+                            {a.emoji}
+                          </div>
+                          <div style={{ minWidth:0 }}>
+                            <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"#1e3a8a",
+                              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                              {user.username}{isMe && <span style={{ fontSize:9, color:"#4f46e5", marginLeft:5, fontWeight:700 }}>YOU</span>}
+                            </div>
+                            <div style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""} total</div>
+                          </div>
+                        </div>
+                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
+                          fontWeight:800, color:"#15803d" }}>{user.correct}</div>
+                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
+                          fontWeight:800, color:"#dc2626" }}>{losses}</div>
+                        <div style={{ width:isMobile?44:60, textAlign:"right" }}>
+                          <span style={{ fontSize:isMobile?14:16, fontWeight:900,
+                            color: user.pct >= 60 ? "#15803d" : user.pct >= 50 ? "#1e3a8a" : "#dc2626" }}>
+                            {user.pct}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ marginTop:12, fontSize:11, color:"#94a3b8", textAlign:"center" }}>
+                Based on picks from the last 3 days of completed games
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // ── Root ─────────────────────────────────────────────────────────────────────
     function NBAGames() {
       const isMobile = useWindowWidth() < 600;
@@ -2782,6 +3315,7 @@
       const isHome     = view === "home";
       const isFavs     = view === "favorites";
       const isDontMiss = view === "dontmiss";
+      const isStakes   = view === "stakes";
       const isTeam     = view?.type === "team";
       const isPlayer   = view?.type === "player";
 
@@ -2790,52 +3324,59 @@
           {/* Header */}
           <div style={{ position:"sticky", top:0, zIndex:50, background:"white",
             borderBottom:"1px solid #dbeafe", boxShadow:"0 1px 16px rgba(59,130,246,0.06)" }}>
-            <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"10px 16px":"14px 24px",
-              display:"flex", alignItems:"center", gap:isMobile?6:10, flexWrap:isMobile?"wrap":"nowrap" }}>
-              <h1 style={{ fontSize:isMobile?16:20, fontWeight:900, color:"#1e3a8a", display:"flex", alignItems:"center", gap:isMobile?6:8, marginRight:isMobile?0:6, flexShrink:0 }}>
-                🏀 <span>{isMobile?"":" NBA CatchUp"}</span>
+            {/* Row 1: Logo + action buttons */}
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"10px 16px 8px":"12px 24px 10px",
+              display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <h1 style={{ fontSize:isMobile?17:22, fontWeight:900, color:"#1e3a8a", display:"flex", alignItems:"center", gap:8 }}>
+                🏀<span style={{ letterSpacing:"-0.02em" }}>{isMobile?" NBA":"  NBA CatchUp"}</span>
               </h1>
-              <div style={{ display:"flex", gap:6, order:isMobile?3:-1, width:isMobile?"100%":"auto" }}>
-                {[
-                  { id:"home",      label:isMobile?"🏀":"🏀 Games" },
-                  { id:"favorites", label:isMobile?"⭐":`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
-                  { id:"dontmiss",  label:isMobile?"🔥":"🔥 Don't Miss!" },
-                ].map(tab => {
-                  const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : isFavs||isTeam||isPlayer;
-                  return (
-                    <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"6px 10px":"7px 16px",
-                      borderRadius:20, fontSize:isMobile?11:12, fontWeight:700,
-                      background:active?"#3b82f6":"#f0f6ff", color:active?"white":"#60a5fa",
-                      boxShadow:active?"0 2px 8px rgba(59,130,246,0.3)":"none", transition:"all 0.15s" }}>
-                      {tab.label}
-                    </button>
-                  );
-                })}
+              <div style={{ display:"flex", gap:isMobile?6:8, alignItems:"center" }}>
+                {/* Account button */}
+                <button onClick={() => setAccountOpen(true)} style={{ display:"flex", alignItems:"center",
+                  gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
+                  background: currentUser ? AVATARS.find(a=>a.id===currentUser.avatar)?.bg ?? "#1e3a8a" : "#f0f6ff",
+                  color: currentUser ? "white" : "#3b82f6",
+                  fontSize:isMobile?11:12, fontWeight:700, flexShrink:0,
+                  boxShadow: currentUser ? "0 2px 10px rgba(0,0,0,0.2)" : "none",
+                  transition:"all 0.2s" }}>
+                  <span style={{ fontSize:isMobile?14:15 }}>
+                    {currentUser ? (AVATARS.find(a=>a.id===currentUser.avatar)?.emoji ?? "👤") : "👤"}
+                  </span>
+                  <span>{currentUser ? currentUser.username : "Sign In"}</span>
+                </button>
+                {/* Spoiler button */}
+                <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
+                  gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
+                  background:spoilerMode?"#1e3a8a":"#f0f6ff", color:spoilerMode?"white":"#3b82f6",
+                  fontSize:isMobile?11:12, fontWeight:700, flexShrink:0,
+                  boxShadow:spoilerMode?"0 2px 14px rgba(30,58,138,.4), 0 0 0 3px rgba(59,130,246,.15)":"none",
+                  transition:"all 0.2s", animation:spoilerMode?"pulseGlow 2s infinite":"none" }}>
+                  <span style={{ fontSize:isMobile?14:15 }}>{spoilerMode?"🙈":"👁️"}</span>
+                  <span>{spoilerMode?"Hidden":"Visible"}</span>
+                </button>
               </div>
-              {isMobile && <div style={{ flex:1 }} />}
-              {!isMobile && <div style={{ flex:1 }} />}
-              {/* Account button */}
-              <button onClick={() => setAccountOpen(true)} style={{ display:"flex", alignItems:"center",
-                gap:isMobile?4:6, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
-                background: currentUser ? AVATARS.find(a=>a.id===currentUser.avatar)?.bg ?? "#1e3a8a" : "#f0f6ff",
-                color: currentUser ? "white" : "#3b82f6",
-                fontSize:isMobile?10:12, fontWeight:700, flexShrink:0,
-                boxShadow: currentUser ? "0 2px 10px rgba(0,0,0,0.2)" : "none",
-                transition:"all 0.2s" }}>
-                <span style={{ fontSize:isMobile?14:15 }}>
-                  {currentUser ? (AVATARS.find(a=>a.id===currentUser.avatar)?.emoji ?? "👤") : "👤"}
-                </span>
-                {!isMobile && <span>{currentUser ? currentUser.username : "Sign In"}</span>}
-              </button>
-              <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
-                gap:isMobile?4:7, padding:isMobile?"6px 12px":"8px 18px", borderRadius:20,
-                background:spoilerMode?"#1e3a8a":"#f0f6ff", color:spoilerMode?"white":"#3b82f6",
-                fontSize:isMobile?10:12, fontWeight:700, flexShrink:0,
-                boxShadow:spoilerMode?"0 2px 14px rgba(30,58,138,.4), 0 0 0 3px rgba(59,130,246,.15)":"none",
-                transition:"all 0.2s", animation:spoilerMode?"pulseGlow 2s infinite":"none" }}>
-                <span style={{ fontSize:isMobile?14:15 }}>{spoilerMode?"🙈":"👁️"}</span>
-                {isMobile?spoilerMode?"Hidden":"Visible":spoilerMode?"Spoilers Hidden":"No Spoilers"}
-              </button>
+            </div>
+            {/* Row 2: Nav tabs */}
+            <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"0 12px 10px":"0 24px 10px",
+              display:"flex", gap:isMobile?6:8, overflowX:"auto", WebkitOverflowScrolling:"touch" }}
+              className="mobile-scroll">
+              {[
+                { id:"home",      label:"🏀 Games" },
+                { id:"favorites", label:`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
+                { id:"dontmiss",  label:"🔥 Don't Miss!" },
+                { id:"stakes",    label:"🎲 Stakes" },
+              ].map(tab => {
+                const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : tab.id==="stakes" ? isStakes : isFavs||isTeam||isPlayer;
+                return (
+                  <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"7px 13px":"7px 18px",
+                    borderRadius:20, fontSize:isMobile?12:13, fontWeight:700, flexShrink:0,
+                    background:active?"#3b82f6":"#f0f6ff", color:active?"white":"#60a5fa",
+                    boxShadow:active?"0 2px 8px rgba(59,130,246,0.3)":"none", transition:"all 0.15s",
+                    whiteSpace:"nowrap" }}>
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -2851,6 +3392,8 @@
                 onSelectPlayer={p => setView({type:"player",player:p})} />}
               {isDontMiss && <DontMissView gameCache={gameCache} loadDate={loadDate}
                 standings={standings} spoilerMode={spoilerMode} />}
+              {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
+                currentUser={currentUser} standings={standings} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
