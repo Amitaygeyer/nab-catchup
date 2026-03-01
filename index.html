@@ -285,6 +285,13 @@
     const FUTURE_DATES = Array.from({ length: 6 }, (_, i) => dateStr(-(i + 1)));
     // Extended range for Don't Miss page – 10 days balances streak accuracy vs API load
     const DONT_MISS_DATES = Array.from({ length: 10 }, (_, i) => dateStr(i));
+    // Classic NBA rivalries (pairs of team abbreviations)
+    const RIVALRIES = [
+      ["BOS","LAL"],["CHI","DET"],["NYK","MIA"],["LAL","GSW"],["BOS","PHI"],
+      ["LAL","SAC"],["GSW","CLE"],["OKC","MIA"],["CHI","NYK"],["MIL","BOS"],
+      ["PHX","LAL"],["LAC","LAL"],["HOU","GSW"],["UTA","LAL"],["DET","IND"],
+      ["TOR","PHI"],["MIL","BKN"],["BOS","MIA"],["NYK","BKN"],["LAL","PHX"],
+    ];
 
     // ── Data normalisation ───────────────────────────────────────────────────────
     const byPts = arr => [...arr].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
@@ -593,26 +600,28 @@
                       )}
                     </div>
                   </div>
-                  {/* Centre: time */}
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?4:6, padding:"0 4px" }}>
-                    <div style={{ fontSize:isMobile?8:10, fontWeight:800, color:"rgba(255,255,255,0.45)",
-                      letterSpacing:"0.14em", textTransform:"uppercase" }}>vs</div>
+                  {/* Centre: TIP-OFF time */}
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?4:6, padding:"0 6px", minWidth:isMobile?72:92 }}>
+                    <div style={{ fontSize:isMobile?7:8, fontWeight:800, color:"rgba(255,255,255,0.45)",
+                      letterSpacing:"0.16em", textTransform:"uppercase" }}>TIP-OFF</div>
                     {gametime ? (
-                      <div style={{ background:"rgba(255,255,255,0.12)", borderRadius:12,
-                        padding:isMobile?"6px 10px":"8px 14px", textAlign:"center", backdropFilter:"blur(4px)",
-                        border:"1px solid rgba(255,255,255,0.18)" }}>
-                        <div style={{ fontSize:isMobile?16:22, fontWeight:900, color:"white", lineHeight:1 }}>{gametime.time}</div>
-                        <div style={{ fontSize:isMobile?8:10, color:"rgba(255,255,255,0.65)", fontWeight:700,
-                          letterSpacing:"0.06em", marginTop:1 }}>{gametime.ampm} {gametime.tz}</div>
+                      <div style={{ background:"rgba(255,255,255,0.15)", borderRadius:14,
+                        padding:isMobile?"7px 12px":"9px 16px", textAlign:"center",
+                        border:"1px solid rgba(255,255,255,0.22)", boxShadow:"0 2px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.14)" }}>
+                        <div style={{ fontSize:isMobile?20:28, fontWeight:900, color:"white", lineHeight:1, letterSpacing:"-0.02em" }}>{gametime.time}</div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:3, marginTop:3 }}>
+                          <span style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.8)", fontWeight:800, letterSpacing:"0.06em" }}>{gametime.ampm}</span>
+                          <span style={{ width:1, height:isMobile?8:9, background:"rgba(255,255,255,0.25)", display:"inline-block" }} />
+                          <span style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.6)", fontWeight:700, letterSpacing:"0.06em" }}>{gametime.tz}</span>
+                        </div>
                       </div>
                     ) : (
-                      <div style={{ background:"rgba(255,255,255,0.1)", borderRadius:12, padding:isMobile?"6px 10px":"8px 16px",
-                        fontSize:isMobile?11:13, fontWeight:800, color:"rgba(255,255,255,0.7)" }}>TBD</div>
+                      <div style={{ background:"rgba(255,255,255,0.09)", borderRadius:14, padding:isMobile?"7px 14px":"9px 18px",
+                        textAlign:"center", border:"1px solid rgba(255,255,255,0.14)" }}>
+                        <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"rgba(255,255,255,0.55)", lineHeight:1 }}>TBD</div>
+                      </div>
                     )}
-                    {!isMobile && <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontWeight:600,
-                      background:"rgba(255,255,255,0.08)", borderRadius:20, padding:"2px 8px" }}>
-                      🏠 {game.home.abbreviation}
-                    </div>}
+                    <div style={{ fontSize:isMobile?8:9, color:"rgba(255,255,255,0.38)", fontWeight:600, letterSpacing:"0.04em" }}>🏠 {game.home.abbreviation}</div>
                   </div>
                   {/* Home */}
                   <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
@@ -1129,15 +1138,25 @@
       const [tdDate,         setTdDate]         = useState(null);
       const tdFetchedRef = useRef(null); // which date we've already fetched stats for
 
-      // Load 10 days of game data sequentially to avoid API rate-limiting
+      // Two-phase load so the page appears fast:
+      // Phase 1 – load the 2 most recent dates in parallel (often already cached
+      //            from HomeView, so this is usually instant). Show the page as
+      //            soon as they're done — Top Performers can fetch right away.
+      // Phase 2 – load the remaining 8 dates in background batches of 3 so
+      //            streaks & upsets fill in without blocking the initial render.
       useEffect(() => {
         let active = true;
         (async () => {
-          for (const d of DONT_MISS_DATES) {
+          // Phase 1: just today + yesterday
+          await Promise.all(DONT_MISS_DATES.slice(0, 2).map(d => loadDate(d)));
+          if (!active) return;
+          setLoading(false);  // ← page becomes visible here
+
+          // Phase 2: remaining dates in batches of 3 (background)
+          for (let i = 2; i < DONT_MISS_DATES.length; i += 3) {
             if (!active) return;
-            await loadDate(d);
+            await Promise.all(DONT_MISS_DATES.slice(i, i + 3).map(d => loadDate(d)));
           }
-          if (active) setLoading(false);
         })();
         return () => { active = false; };
       }, []);
@@ -1419,8 +1438,9 @@
     }
 
     // ── Standings Panel ───────────────────────────────────────────────────────────
-    function StandingsPanel({ standings }) {
+    function StandingsPanel({ standings, spoilerMode }) {
       const isMobile = useWindowWidth() < 600;
+      if (spoilerMode) return null;
       const hasData = Object.keys(standings).length > 0;
 
       // Sort a list of abbreviations by win-pct desc, then wins desc
@@ -1673,6 +1693,130 @@
       );
     }
 
+    // ── Upcoming Key Matchups ─────────────────────────────────────────────────────
+    function UpcomingKeyMatchups({ gameCache, loadDate, standings }) {
+      const isMobile = useWindowWidth() < 600;
+      const KEY_DATES = FUTURE_DATES.slice(0, 3); // next 3 days
+
+      // Load the 3 future dates on mount
+      useEffect(() => {
+        KEY_DATES.forEach(d => {
+          if (gameCache[d] === undefined) loadDate(d);
+        });
+      }, []);
+
+      // Rank teams by win% from standings
+      const ranked = React.useMemo(() => {
+        const all = [...Object.entries(standings)].map(([abbr, r]) => {
+          const gp = r.wins + r.losses;
+          return { abbr, wins: r.wins, losses: r.losses, pct: gp > 0 ? r.wins / gp : 0 };
+        }).sort((a, b) => b.pct !== a.pct ? b.pct - a.pct : b.wins - a.wins);
+        const rankMap = {};
+        all.forEach((t, i) => { rankMap[t.abbr] = i + 1; });
+        return rankMap;
+      }, [standings]);
+
+      const isRivalry = (a, b) =>
+        RIVALRIES.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+
+      // Collect and classify key games from the next 3 days
+      const keyGames = React.useMemo(() => {
+        const results = [];
+        KEY_DATES.forEach(d => {
+          const games = gameCache[d] ?? [];
+          games.forEach(g => {
+            const ha = g.home.abbreviation;
+            const va = g.visitor.abbreviation;
+            const hr = ranked[ha] ?? 99;
+            const vr = ranked[va] ?? 99;
+            const diff = Math.abs((standings[ha]?.wins ?? 0) - (standings[va]?.wins ?? 0));
+            let type = null, weight = 0;
+            if (hr <= 6 && vr <= 6) { type = "TOP CLASH"; weight = 3; }
+            else if (isRivalry(ha, va)) { type = "RIVALRY"; weight = 2; }
+            else if (hr <= 10 && vr <= 10 && diff <= 2) { type = "CLOSE RACE"; weight = 1; }
+            if (type) results.push({ game: g, date: d, type, weight, hr, vr });
+          });
+        });
+        return results
+          .sort((a, b) => b.weight !== a.weight ? b.weight - a.weight : (a.hr + a.vr) - (b.hr + b.vr))
+          .slice(0, 6);
+      }, [gameCache, ranked, standings]);
+
+      if (keyGames.length === 0) return null;
+
+      const typeColors = {
+        "TOP CLASH":  { bg:"linear-gradient(135deg,#7c3aed,#4f46e5)", pill:"#ede9fe", pillText:"#5b21b6" },
+        "RIVALRY":    { bg:"linear-gradient(135deg,#b91c1c,#dc2626)", pill:"#fee2e2", pillText:"#991b1b" },
+        "CLOSE RACE": { bg:"linear-gradient(135deg,#0369a1,#0284c7)", pill:"#e0f2fe", pillText:"#075985" },
+      };
+
+      const fmtMatchupDate = d => {
+        const dt = new Date(d + "T12:00:00");
+        return dt.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" });
+      };
+
+      return (
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"12px 12px 0":"16px 24px 0" }}>
+          <div style={{ background:"white", borderRadius:18, border:"1px solid #e0e7ff",
+            boxShadow:"0 4px 24px rgba(99,102,241,0.1)", overflow:"hidden" }}>
+            {/* Header */}
+            <div style={{ background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 60%,#4f46e5 100%)",
+              padding:isMobile?"12px 16px":"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:isMobile?16:18 }}>🔮</span>
+              <div>
+                <div style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white", letterSpacing:"0.02em" }}>Upcoming Key Matchups</div>
+                <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:1 }}>Next 3 days · Top clashes, rivalries & close races</div>
+              </div>
+            </div>
+            {/* Games list */}
+            <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(280px,1fr))" }}>
+              {keyGames.map(({ game: g, date: d, type, hr, vr }, idx) => {
+                const cols = typeColors[type] ?? typeColors["CLOSE RACE"];
+                const gt = fmtGameTime(g.status);
+                const ha = g.home.abbreviation;
+                const va = g.visitor.abbreviation;
+                const hs = standings[ha];
+                const vs = standings[va];
+                return (
+                  <div key={g.id} style={{ padding:isMobile?"12px 14px":"14px 18px",
+                    borderBottom: idx < keyGames.length - 1 ? "1px solid #f0f4ff" : "none",
+                    borderRight: !isMobile && (idx % 3 !== 2) && idx < keyGames.length - 1 ? "1px solid #f0f4ff" : "none",
+                    display:"flex", alignItems:"center", gap:10 }}>
+                    {/* Type pill */}
+                    <div style={{ background:cols.pill, borderRadius:6, padding:"3px 7px", flexShrink:0 }}>
+                      <div style={{ fontSize:isMobile?7:8, fontWeight:900, color:cols.pillText, letterSpacing:"0.1em", whiteSpace:"nowrap" }}>{type}</div>
+                    </div>
+                    {/* Visitor */}
+                    <div style={{ display:"flex", alignItems:"center", gap:isMobile?5:7, flex:1, minWidth:0 }}>
+                      <TeamLogo abbr={va} size={isMobile?28:32} />
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#1e3a8a" }}>{va}</div>
+                        {vs && <div style={{ fontSize:isMobile?8:9, color:"#64748b", fontWeight:600 }}>#{vr} · {vs.wins}–{vs.losses}</div>}
+                      </div>
+                    </div>
+                    {/* VS + time */}
+                    <div style={{ textAlign:"center", flexShrink:0, padding:"0 4px" }}>
+                      <div style={{ fontSize:isMobile?8:9, fontWeight:800, color:"#94a3b8", letterSpacing:"0.1em" }}>VS</div>
+                      {gt && <div style={{ fontSize:isMobile?10:11, fontWeight:800, color:"#4f46e5", marginTop:1 }}>{gt.time} <span style={{ fontSize:8, fontWeight:600, color:"#94a3b8" }}>{gt.ampm}</span></div>}
+                      <div style={{ fontSize:isMobile?7:8, color:"#94a3b8", fontWeight:600 }}>{fmtMatchupDate(d)}</div>
+                    </div>
+                    {/* Home */}
+                    <div style={{ display:"flex", alignItems:"center", gap:isMobile?5:7, flex:1, minWidth:0, justifyContent:"flex-end" }}>
+                      <div style={{ minWidth:0, textAlign:"right" }}>
+                        <div style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#1e3a8a" }}>{ha}</div>
+                        {hs && <div style={{ fontSize:isMobile?8:9, color:"#64748b", fontWeight:600 }}>#{hr} · {hs.wins}–{hs.losses}</div>}
+                      </div>
+                      <TeamLogo abbr={ha} size={isMobile?28:32} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // ── Home View ────────────────────────────────────────────────────────────────
     function HomeView({ gameCache, loadDate, spoilerMode, standings }) {
       const isMobile = useWindowWidth() < 600;
@@ -1715,6 +1859,11 @@
               </div>
             </div>
           </div>
+          {/* Upcoming Key Matchups — always shown on home page when standings loaded */}
+          {Object.keys(standings).length > 0 && (
+            <UpcomingKeyMatchups gameCache={gameCache} loadDate={loadDate} standings={standings} />
+          )}
+
           {/* Top Performers — only when data is ready and games exist */}
           {!loading && !error && games && games.length > 0 && (
             <div style={{ paddingTop:isMobile?12:20 }}>
@@ -2030,7 +2179,7 @@
                       color: weeklyW > weeklyL ? "#15803d" : weeklyW < weeklyL ? "#dc2626" : "#1e3a8a" }}>
                       {weeklyW}–{weeklyL}
                     </div>
-                    <div style={{ fontSize:isMobile?8:9, fontWeight:700, color:"#60a5fa", letterSpacing:"0.07em", marginTop:1 }}>LAST 7</div>
+                    <div style={{ fontSize:isMobile?8:9, fontWeight:700, color:"#60a5fa", letterSpacing:"0.07em", marginTop:1 }}>WEEK</div>
                   </div>
                 )}
               </div>
@@ -2392,7 +2541,7 @@
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
               {/* Mobile: standings at bottom of every page */}
-              {isMobile && <StandingsPanel standings={standings} />}
+              {isMobile && <StandingsPanel standings={standings} spoilerMode={spoilerMode} />}
             </div>
 
             {/* ── Desktop sticky sidebar ── */}
@@ -2400,7 +2549,7 @@
               <div style={{ width:210, flexShrink:0, position:"sticky", top:58,
                 maxHeight:"calc(100vh - 58px)", overflowY:"auto",
                 padding:"16px 12px 16px 0" }}>
-                <StandingsPanel standings={standings} />
+                <StandingsPanel standings={standings} spoilerMode={spoilerMode} />
               </div>
             )}
           </div>
