@@ -696,8 +696,12 @@
 
             {/* ── FINAL / LIVE score header ── */}
             {!isUpcoming && (
-              <div style={{ background:"linear-gradient(150deg,#dbeafe 0%,#eff6ff 100%)", padding:isMobile?"14px 10px 10px":"20px 14px 14px" }}>
-                <div style={{ display:"flex", alignItems:"center" }}>
+              <div style={{ background:"linear-gradient(145deg,#1e1b4b 0%,#1e3a8a 60%,#1d4ed8 100%)",
+                padding:isMobile?"14px 10px 10px":"20px 14px 14px", position:"relative", overflow:"hidden" }}>
+                {/* subtle shimmer lines */}
+                <div style={{ position:"absolute", inset:0, opacity:0.06,
+                  backgroundImage:"repeating-linear-gradient(135deg,white 0px,white 1px,transparent 1px,transparent 12px)" }} />
+                <div style={{ display:"flex", alignItems:"center", position:"relative" }}>
                   {[game.visitor, game.home].map((side, si) => {
                     const rec = standings?.[side.abbreviation];
                     const won = si===0 ? visitorWon : homeWon;
@@ -706,14 +710,16 @@
                       <div key={si} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4,
                         opacity:faded?0.35:1, transition:"opacity 0.3s" }}>
                         <TeamLogo abbr={side.abbreviation} size={isMobile?36:52} />
-                        <span style={{ fontSize:isMobile?10:11, fontWeight:700, color:"#60a5fa", letterSpacing:"0.1em" }}>{side.abbreviation}</span>
+                        <span style={{ fontSize:isMobile?10:11, fontWeight:700,
+                          color:"rgba(255,255,255,0.75)", letterSpacing:"0.1em" }}>{side.abbreviation}</span>
                         <span style={{ fontSize:isMobile?28:40, fontWeight:900, lineHeight:1,
                           filter:spoilerMode?"blur(10px)":"none", transition:"filter 0.4s", userSelect:spoilerMode?"none":"auto",
-                          color:spoilerMode?"#93c5fd":won?"#1e3a8a":"#93c5fd" }}>
+                          color:spoilerMode?"rgba(255,255,255,0.3)":won?"white":"rgba(255,255,255,0.45)" }}>
                           {side.score??"—"}
                         </span>
                         {rec && !spoilerMode && (
-                          <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#64748b", letterSpacing:"0.03em" }}>
+                          <span style={{ fontSize:isMobile?9:10, fontWeight:700,
+                            color:"rgba(255,255,255,0.5)", letterSpacing:"0.03em" }}>
                             {rec.wins}–{rec.losses}
                           </span>
                         )}
@@ -721,12 +727,13 @@
                     );
                   })}
                   <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"0 8px", gap:8 }}>
-                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em", padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap",
-                      background: spoilerMode ? "#f0f6ff" : isFinal ? "#dbeafe" : "#dcfce7",
-                      color:       spoilerMode ? "#93c5fd" : isFinal ? "#1d4ed8" : "#15803d" }}>
+                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em",
+                      padding:"4px 10px", borderRadius:20, whiteSpace:"nowrap",
+                      background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.22)",
+                      color: spoilerMode ? "rgba(255,255,255,0.5)" : isFinal ? "white" : "#4ade80" }}>
                       {spoilerMode ? "VS" : isFinal ? "FINAL" : game.status ?? "LIVE"}
                     </span>
-                    <span style={{ color:"#bfdbfe", fontSize:22, fontWeight:200 }}>·</span>
+                    <span style={{ color:"rgba(255,255,255,0.25)", fontSize:22, fontWeight:200 }}>·</span>
                   </div>
                 </div>
               </div>
@@ -1511,7 +1518,7 @@
         try {
           const cred = await fbAuth.createUserWithEmailAndPassword(toEmail(username), password);
           const av = AVATARS.find(a => a.id === selAvatar) ?? AVATARS[0];
-          const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers };
+          const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers, friends: [] };
           await fbDb.collection("users").doc(cred.user.uid).set(profile);
           setCurrentUser({ uid: cred.user.uid, ...profile });
           onClose();
@@ -1530,11 +1537,11 @@
           const doc = await fbDb.collection("users").doc(cred.user.uid).get();
           if (doc.exists) {
             const data = doc.data();
-            setCurrentUser({ uid: cred.user.uid, ...data });
+            setCurrentUser({ uid: cred.user.uid, friends: [], ...data });
             if (data.favTeams)   setFavTeams(data.favTeams);
             if (data.favPlayers) setFavPlayers(data.favPlayers);
           } else {
-            setCurrentUser({ uid: cred.user.uid, username: username.trim(), avatar: AVATARS[0].id, favTeams, favPlayers });
+            setCurrentUser({ uid: cred.user.uid, username: username.trim(), avatar: AVATARS[0].id, favTeams, favPlayers, friends: [] });
           }
           onClose();
         } catch(e) {
@@ -2721,6 +2728,233 @@
       }
     }
 
+    // ── Friends View ──────────────────────────────────────────────────────────────
+    function FriendsView({ currentUser, setCurrentUser }) {
+      const isMobile = useWindowWidth() < 600;
+      const [search,         setSearch]         = useState("");
+      const [searchResult,   setSearchResult]   = useState(null); // null | "loading" | "not_found" | "self" | {uid,...}
+      const [friendProfiles, setFriendProfiles] = useState({});
+      const [loadingFriends, setLoadingFriends] = useState(false);
+
+      const friendUids = currentUser?.friends ?? [];
+      const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
+
+      // Load friend profile docs whenever the friends list changes
+      useEffect(() => {
+        if (!fbDb || friendUids.length === 0) { setFriendProfiles({}); return; }
+        setLoadingFriends(true);
+        Promise.all(friendUids.map(uid => fbDb.collection("users").doc(uid).get()))
+          .then(docs => {
+            const p = {};
+            docs.forEach(doc => { if (doc.exists) p[doc.id] = doc.data(); });
+            setFriendProfiles(p);
+            setLoadingFriends(false);
+          })
+          .catch(() => setLoadingFriends(false));
+      }, [friendUids.join(",")]);
+
+      const searchUser = async () => {
+        const q = search.trim();
+        if (!q || !fbDb) return;
+        setSearchResult("loading");
+        try {
+          const snap = await fbDb.collection("users").where("username", "==", q).limit(1).get();
+          if (snap.empty) { setSearchResult("not_found"); return; }
+          const doc = snap.docs[0];
+          if (doc.id === currentUser?.uid) { setSearchResult("self"); return; }
+          setSearchResult({ uid: doc.id, ...doc.data() });
+        } catch(e) { setSearchResult("not_found"); }
+      };
+
+      const addFriend = async (uid) => {
+        if (!currentUser || !fbDb) return;
+        const newFriends = [...friendUids, uid];
+        await fbDb.collection("users").doc(currentUser.uid).update({ friends: newFriends }).catch(() => {});
+        setCurrentUser(prev => ({ ...prev, friends: newFriends }));
+        setSearchResult(null); setSearch("");
+      };
+
+      const removeFriend = async (uid) => {
+        if (!currentUser || !fbDb) return;
+        const newFriends = friendUids.filter(f => f !== uid);
+        await fbDb.collection("users").doc(currentUser.uid).update({ friends: newFriends }).catch(() => {});
+        setCurrentUser(prev => ({ ...prev, friends: newFriends }));
+      };
+
+      if (!currentUser) return (
+        <div style={{ maxWidth:600, margin:"0 auto", padding:"60px 24px", textAlign:"center" }}>
+          <div style={{ fontSize:56, marginBottom:16 }}>👥</div>
+          <div style={{ fontSize:20, fontWeight:900, color:"#1e3a8a", marginBottom:8 }}>Friends</div>
+          <div style={{ color:"#64748b", fontSize:14 }}>Sign in to add friends and see their picks</div>
+        </div>
+      );
+
+      return (
+        <div style={{ maxWidth:700, margin:"0 auto", padding:isMobile?"14px 12px":"20px 24px" }}>
+          <div style={{ marginBottom:20 }}>
+            <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"#1e3a8a", marginBottom:4 }}>👥 Friends</h2>
+            <p style={{ fontSize:isMobile?12:13, color:"#64748b", fontWeight:500 }}>
+              Add friends to see their picks in Stakes and compare predictions
+            </p>
+          </div>
+
+          {/* Search card */}
+          <div style={{ background:"white", borderRadius:16, border:"1px solid #e0e7ff",
+            boxShadow:"0 2px 12px rgba(99,102,241,0.06)", padding:"16px 18px", marginBottom:20 }}>
+            <div style={{ fontWeight:800, color:"#1e3a8a", fontSize:14, marginBottom:12 }}>🔍 Find by username</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && searchUser()}
+                placeholder="Enter exact username..."
+                style={{ flex:1, padding:"10px 14px", borderRadius:10,
+                  border:"1.5px solid #c7d2fe", fontSize:isMobile?13:14,
+                  outline:"none", color:"#1e3a8a", fontWeight:600 }} />
+              <button onClick={searchUser}
+                style={{ padding:"10px 20px", background:"linear-gradient(135deg,#4f46e5,#6366f1)",
+                  color:"white", borderRadius:10, border:"none", fontWeight:800,
+                  cursor:"pointer", fontSize:13, flexShrink:0 }}>
+                Search
+              </button>
+            </div>
+            {/* Result states */}
+            {searchResult === "loading" && (
+              <div style={{ marginTop:12, fontSize:13, color:"#94a3b8" }}>Searching...</div>
+            )}
+            {searchResult === "not_found" && (
+              <div style={{ marginTop:12, fontSize:13, color:"#ef4444", fontWeight:600 }}>
+                No user found with that username
+              </div>
+            )}
+            {searchResult === "self" && (
+              <div style={{ marginTop:12, fontSize:13, color:"#f59e0b", fontWeight:600 }}>
+                That's you! 😄
+              </div>
+            )}
+            {searchResult && typeof searchResult === "object" && (
+              <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:12,
+                background:"#f8faff", borderRadius:12, padding:"12px 14px",
+                border:"1px solid #e0e7ff" }}>
+                <div style={{ width:44, height:44, borderRadius:"50%",
+                  background:av(searchResult.avatar).bg, flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>
+                  {av(searchResult.avatar).emoji}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:900, color:"#1e3a8a", fontSize:15 }}>{searchResult.username}</div>
+                  <div style={{ display:"flex", gap:5, marginTop:4, flexWrap:"wrap", alignItems:"center" }}>
+                    {(searchResult.favTeams ?? []).slice(0, 4).map(abbr => (
+                      <TeamLogo key={abbr} abbr={abbr} size={18} />
+                    ))}
+                    {(searchResult.favTeams ?? []).length === 0 && (
+                      <span style={{ fontSize:10, color:"#94a3b8" }}>No favourite teams</span>
+                    )}
+                  </div>
+                </div>
+                {friendUids.includes(searchResult.uid)
+                  ? <span style={{ fontSize:12, fontWeight:800, color:"#22c55e",
+                      background:"#f0fdf4", borderRadius:20, padding:"4px 12px",
+                      border:"1px solid #bbf7d0" }}>✓ Friends</span>
+                  : <button onClick={() => addFriend(searchResult.uid)}
+                      style={{ padding:"8px 18px", background:"linear-gradient(135deg,#4f46e5,#6366f1)",
+                        color:"white", borderRadius:10, border:"none", fontWeight:800,
+                        cursor:"pointer", fontSize:13, flexShrink:0 }}>
+                      + Add
+                    </button>
+                }
+              </div>
+            )}
+          </div>
+
+          {/* Friends list */}
+          <div style={{ fontWeight:900, color:"#1e3a8a", fontSize:isMobile?14:16, marginBottom:12,
+            display:"flex", alignItems:"center", gap:8 }}>
+            My Friends
+            {friendUids.length > 0 && (
+              <span style={{ fontSize:12, fontWeight:600, color:"#818cf8",
+                background:"#eef2ff", borderRadius:20, padding:"2px 10px" }}>
+                {friendUids.length}
+              </span>
+            )}
+          </div>
+
+          {friendUids.length === 0 && (
+            <div style={{ textAlign:"center", padding:"50px 24px", background:"white",
+              borderRadius:16, border:"1px solid #e0e7ff" }}>
+              <div style={{ fontSize:44, marginBottom:12 }}>🤝</div>
+              <div style={{ fontWeight:800, color:"#1e3a8a", fontSize:15 }}>No friends yet</div>
+              <div style={{ fontSize:12, color:"#94a3b8", marginTop:6 }}>
+                Search for users by username above to add them
+              </div>
+            </div>
+          )}
+
+          {loadingFriends && friendUids.length > 0 && (
+            <div style={{ color:"#94a3b8", fontSize:13, padding:"12px 0" }}>Loading friends...</div>
+          )}
+
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {friendUids.map(uid => {
+              const p = friendProfiles[uid];
+              if (!p) return null;
+              const a = av(p.avatar ?? AVATARS[0].id);
+              const favTeam   = (p.favTeams   ?? [])[0];
+              const favPlayer = (p.favPlayers ?? [])[0];
+              return (
+                <div key={uid} style={{ background:"white", borderRadius:14,
+                  border:"1px solid #e0e7ff", padding:"14px 16px",
+                  display:"flex", alignItems:"center", gap:14,
+                  boxShadow:"0 1px 8px rgba(99,102,241,0.05)" }}>
+                  {/* Avatar */}
+                  <div style={{ width:50, height:50, borderRadius:"50%", background:a.bg, flexShrink:0,
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:26,
+                    border:"2px solid rgba(255,255,255,0.8)",
+                    boxShadow:`0 0 0 3px ${a.bg}44` }}>
+                    {a.emoji}
+                  </div>
+                  {/* Info */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:900, color:"#1e3a8a", fontSize:isMobile?14:16 }}>
+                      {p.username}
+                    </div>
+                    <div style={{ display:"flex", gap:isMobile?8:12, marginTop:6,
+                      alignItems:"center", flexWrap:"wrap" }}>
+                      {favTeam && (
+                        <div style={{ display:"flex", alignItems:"center", gap:4,
+                          fontSize:11, color:"#64748b", fontWeight:700 }}>
+                          <span style={{ fontSize:10 }}>⭐</span>
+                          <TeamLogo abbr={favTeam} size={18} />
+                          <span>{favTeam}</span>
+                        </div>
+                      )}
+                      {favPlayer && (
+                        <div style={{ fontSize:11, color:"#64748b", fontWeight:700,
+                          display:"flex", alignItems:"center", gap:4 }}>
+                          <span>🏀</span>
+                          <span>{favPlayer.first_name} {favPlayer.last_name}</span>
+                        </div>
+                      )}
+                      {!favTeam && !favPlayer && (
+                        <span style={{ fontSize:11, color:"#cbd5e1", fontStyle:"italic" }}>
+                          No favourites set
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Remove */}
+                  <button onClick={() => removeFriend(uid)}
+                    style={{ padding:"6px 14px", background:"#fef2f2", color:"#ef4444",
+                      borderRadius:8, border:"1px solid #fecaca", fontSize:12,
+                      fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     // ── Stakes View ───────────────────────────────────────────────────────────────
     function StakesView({ gameCache, loadDate, currentUser, standings }) {
       const isMobile = useWindowWidth() < 600;
@@ -2775,32 +3009,66 @@
         setSubmitting(null);
       };
 
-      // Israeli time helpers
-      const getIsraelInfo = () => {
-        const now = new Date();
-        const fmt = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Asia/Jerusalem", year:"numeric", month:"2-digit", day:"2-digit",
-          hour:"2-digit", minute:"2-digit", hour12: false,
-        });
-        const parts = fmt.formatToParts(now);
-        const get = t => parts.find(p => p.type === t)?.value ?? "0";
-        return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: parseInt(get("hour")) % 24, minute: parseInt(get("minute")) };
+      // ── Voting deadline: 1 hour before each game's tip-off ───────────────────────
+      // Returns the game's tip-off as a UTC ms timestamp, or null if time is unknown.
+      const getGameStartMs = (game, gameDate) => {
+        const gt = fmtGameTime(game.status);
+        if (!gt) return null;
+        let hour = parseInt(gt.time.split(":")[0]);
+        const min  = parseInt(gt.time.split(":")[1] ?? "0");
+        if (gt.ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
+        if (gt.ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+        // Map BallDontLie timezone abbreviations to IANA zones
+        const ianaZone = ({ ET:"America/New_York", CT:"America/Chicago", MT:"America/Denver", PT:"America/Los_Angeles" })[gt.tz] ?? "America/New_York";
+        // Find the UTC offset for this zone on the game date using Intl
+        const probe = new Date(`${gameDate}T12:00:00Z`);
+        const localHour = parseInt(new Intl.DateTimeFormat("en-US", { timeZone: ianaZone, hour:"numeric", hour12:false }).format(probe));
+        const offsetH = 12 - localHour; // hours to add to local time to get UTC
+        // Build UTC milliseconds for the tip-off
+        return Date.UTC(
+          parseInt(gameDate.slice(0,4)),
+          parseInt(gameDate.slice(5,7)) - 1,
+          parseInt(gameDate.slice(8,10)),
+          hour + offsetH, min, 0
+        );
       };
 
-      const isVotingOpen = (gameDate) => {
-        const { date: todayIL, hour, minute } = getIsraelInfo();
-        if (gameDate < todayIL) return false;
-        if (gameDate === todayIL) return hour < 21;
-        return true; // future dates always open
+      // Returns true if voting is still allowed for this specific game
+      const isVotingOpenForGame = (game, gameDate) => {
+        const { date: todayIL } = (() => {
+          const now = new Date();
+          const fmt = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Jerusalem", year:"numeric", month:"2-digit", day:"2-digit" });
+          const parts = fmt.formatToParts(now);
+          const get = t => parts.find(p => p.type === t)?.value ?? "0";
+          return { date: `${get("year")}-${get("month")}-${get("day")}` };
+        })();
+        if (gameDate < todayIL) return false;   // past date → always closed
+        const startMs = getGameStartMs(game, gameDate);
+        if (startMs === null) return gameDate >= todayIL; // no time info → open until game day passes
+        return Date.now() < startMs - 60 * 60 * 1000;    // must be > 1 h before tip-off
       };
 
-      const votingClosesIn = (gameDate) => {
-        const { date: todayIL, hour, minute } = getIsraelInfo();
-        if (gameDate !== todayIL) return null; // not today, no countdown needed
-        const minsLeft = (21 * 60) - (hour * 60 + minute);
+      // Returns a human countdown string ("2h 14m left", "45m left") or null
+      const votingClosesInForGame = (game, gameDate) => {
+        const startMs = getGameStartMs(game, gameDate);
+        if (startMs === null) return null;
+        const minsLeft = Math.round((startMs - 60 * 60 * 1000 - Date.now()) / 60000);
         if (minsLeft <= 0) return null;
         if (minsLeft < 60) return `${minsLeft}m left to vote`;
-        return `${Math.floor(minsLeft/60)}h ${minsLeft%60}m left to vote`;
+        return `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m left to vote`;
+      };
+
+      // Per-date check (used for the vote tab open/closed badge)
+      const isVotingOpen = (gameDate) => {
+        const gamesForDate = gameCache[gameDate] ?? [];
+        // Date is open if ANY game on that day still accepts votes
+        if (gamesForDate.length === 0) {
+          // Fallback: check if the date itself is today or in the future
+          const now = new Date();
+          const today = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Jerusalem" }).format(now);
+          return gameDate >= today;
+        }
+        return gamesForDate.some(g => isVotingOpenForGame(g, gameDate));
       };
 
       // Determine game winner
@@ -2832,43 +3100,45 @@
       const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
       const myVoteFor = (gameId, date) => votes[`${date}_${gameId}`]?.[currentUser?.uid]?.teamAbbr ?? null;
 
-      // ── Avatar chip row ──
-      const VoterChips = ({ voters, limit = 5 }) => {
-        const list = Object.values(voters ?? {}).slice(0, limit);
-        if (!list.length) return null;
-        return (
-          <div style={{ display:"flex", gap:2, flexWrap:"wrap" }}>
-            {list.map((v, i) => {
-              const a = av(v.avatar);
-              return (
-                <div key={i} title={v.username} style={{ width:20, height:20, borderRadius:"50%",
-                  background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
-                  fontSize:10, border:"1.5px solid white", boxShadow:"0 1px 3px rgba(0,0,0,0.15)" }}>
-                  {a.emoji}
-                </div>
-              );
-            })}
-          </div>
-        );
-      };
-
       // ── Vote card for a single upcoming game ──
       const VoteCard = ({ game, date }) => {
-        const voteOpen    = isVotingOpen(date);
-        const countdown   = votingClosesIn(date);
+        const voteOpen    = isVotingOpenForGame(game, date);
+        const countdown   = votingClosesInForGame(game, date);
         const myVote      = myVoteFor(game.id, date);
         const allVotes    = votes[`${date}_${game.id}`] ?? {};
-        const homeVoters  = Object.fromEntries(Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.home.abbreviation));
-        const awayVoters  = Object.fromEntries(Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.visitor.abbreviation));
+        const homeVoterEntries = Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.home.abbreviation);
+        const awayVoterEntries = Object.entries(allVotes).filter(([, v]) => v.teamAbbr === game.visitor.abbreviation);
         const totalVotes  = Object.keys(allVotes).length;
-        const homePct     = totalVotes > 0 ? Math.round(Object.keys(homeVoters).length / totalVotes * 100) : 50;
+        const homePct     = totalVotes > 0 ? Math.round(homeVoterEntries.length / totalVotes * 100) : 50;
         const awayPct     = 100 - homePct;
         const gt          = fmtGameTime(game.status);
         const isBusy      = submitting === game.id;
+        const [showPicks, setShowPicks] = useState(false);
+        const friendUids  = currentUser?.friends ?? [];
 
         const pickTeam = async (abbr) => {
           if (!voteOpen || !currentUser) return;
           await submitVote(game.id, date, abbr);
+        };
+
+        // Single voter row used in the expanded panel
+        const VoterRow = ({ uid, vote }) => {
+          const a = av(vote.avatar);
+          const isMe = uid === currentUser?.uid;
+          return (
+            <div style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", borderRadius:8,
+              background: isMe ? "#eef2ff" : "#f8faff", marginBottom:4,
+              border: isMe ? "1px solid #c7d2fe" : "1px solid transparent" }}>
+              <div style={{ width:22, height:22, borderRadius:"50%", background:a.bg, flexShrink:0,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:11 }}>
+                {a.emoji}
+              </div>
+              <span style={{ fontSize:isMobile?10:11, fontWeight:700, color:"#1e3a8a", flex:1,
+                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{vote.username}</span>
+              {isMe && <span style={{ fontSize:8, fontWeight:800, color:"#4f46e5",
+                background:"#eef2ff", borderRadius:8, padding:"1px 5px", flexShrink:0 }}>YOU</span>}
+            </div>
+          );
         };
 
         return (
@@ -2906,13 +3176,13 @@
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
                   <TeamLogo abbr={game.visitor.abbreviation} size={isMobile?44:58} />
                   <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a" }}>{game.visitor.abbreviation}</div>
-                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%", textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.visitor.city}</div>
+                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%",
+                    textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.visitor.city}</div>
                   {standings?.[game.visitor.abbreviation] && (
                     <div style={{ fontSize:isMobile?9:10, color:"#94a3b8", fontWeight:700 }}>
                       {standings[game.visitor.abbreviation].wins}–{standings[game.visitor.abbreviation].losses}
                     </div>
                   )}
-                  <VoterChips voters={awayVoters} />
                   {myVote === game.visitor.abbreviation && (
                     <div style={{ background:"#4f46e5", color:"white", borderRadius:20, padding:"3px 10px",
                       fontSize:isMobile?9:10, fontWeight:800, letterSpacing:"0.05em" }}>✓ MY PICK</div>
@@ -2920,15 +3190,10 @@
                 </div>
               </button>
 
-              {/* VS / vote count centre */}
+              {/* VS centre */}
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
                 padding:"0 8px", gap:5, minWidth:isMobile?44:56, flexShrink:0 }}>
                 <div style={{ fontSize:isMobile?10:11, fontWeight:900, color:"#c7d2fe", letterSpacing:"0.1em" }}>VS</div>
-                {totalVotes > 0 && (
-                  <div style={{ fontSize:isMobile?8:9, fontWeight:700, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>
-                    {totalVotes}<br/>{totalVotes !== 1 ? "votes" : "vote"}
-                  </div>
-                )}
                 {isBusy && <div style={{ width:18, height:18, borderRadius:"50%",
                   border:"2.5px solid #4f46e5", borderTopColor:"transparent",
                   animation:"spin 0.7s linear infinite" }} />}
@@ -2943,13 +3208,13 @@
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
                   <TeamLogo abbr={game.home.abbreviation} size={isMobile?44:58} />
                   <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"#1e3a8a" }}>{game.home.abbreviation}</div>
-                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%", textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.home.city} 🏠</div>
+                  <div style={{ fontSize:isMobile?9:10, color:"#64748b", fontWeight:600, maxWidth:"90%",
+                    textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.home.city} 🏠</div>
                   {standings?.[game.home.abbreviation] && (
                     <div style={{ fontSize:isMobile?9:10, color:"#94a3b8", fontWeight:700 }}>
                       {standings[game.home.abbreviation].wins}–{standings[game.home.abbreviation].losses}
                     </div>
                   )}
-                  <VoterChips voters={homeVoters} />
                   {myVote === game.home.abbreviation && (
                     <div style={{ background:"#4f46e5", color:"white", borderRadius:20, padding:"3px 10px",
                       fontSize:isMobile?9:10, fontWeight:800, letterSpacing:"0.05em" }}>MY PICK ✓</div>
@@ -2958,24 +3223,93 @@
               </button>
             </div>
 
-            {/* Vote bar + not logged in prompt */}
-            {totalVotes > 0 && (
-              <div style={{ padding:"8px 14px 10px", borderTop:"1px solid #f0f4ff" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                  <span style={{ fontSize:9, fontWeight:700, color:"#64748b" }}>{game.visitor.abbreviation} {awayPct}%</span>
-                  <span style={{ fontSize:9, fontWeight:700, color:"#64748b" }}>{homePct}% {game.home.abbreviation}</span>
+            {/* Bottom: % bar + "See picks" toggle */}
+            <div style={{ borderTop:"1px solid #f0f4ff" }}>
+              {/* Percentage bar */}
+              {totalVotes > 0 && (
+                <div style={{ padding:"10px 14px 0" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <TeamLogo abbr={game.visitor.abbreviation} size={14} />
+                      <span style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#4f46e5" }}>{awayPct}%</span>
+                      <span style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>({awayVoterEntries.length})</span>
+                    </div>
+                    <span style={{ fontSize:9, color:"#94a3b8", fontWeight:700 }}>
+                      {totalVotes} pick{totalVotes !== 1 ? "s" : ""}
+                    </span>
+                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>({homeVoterEntries.length})</span>
+                      <span style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#f59e0b" }}>{homePct}%</span>
+                      <TeamLogo abbr={game.home.abbreviation} size={14} />
+                    </div>
+                  </div>
+                  <div style={{ height:8, borderRadius:6, background:"#e0e7ff", overflow:"hidden", display:"flex" }}>
+                    <div style={{ width:`${awayPct}%`, background:"linear-gradient(90deg,#4f46e5,#818cf8)", transition:"width 0.5s", borderRadius:"6px 0 0 6px" }} />
+                    <div style={{ flex:1, background:"linear-gradient(90deg,#f59e0b,#fbbf24)", borderRadius:"0 6px 6px 0" }} />
+                  </div>
                 </div>
-                <div style={{ height:5, borderRadius:4, background:"#e0e7ff", overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${awayPct}%`, background:"linear-gradient(90deg,#6366f1,#818cf8)", transition:"width 0.5s" }} />
+              )}
+
+              {/* Toggle button */}
+              <button onClick={() => setShowPicks(p => !p)}
+                style={{ width:"100%", padding:"9px 14px", background:"none", border:"none",
+                  cursor:"pointer", fontSize:12, fontWeight:700, color:"#4f46e5",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                👥 {totalVotes > 0 ? `See all ${totalVotes} pick${totalVotes !== 1 ? "s" : ""}` : "No picks yet — be first!"}
+                <span style={{ fontSize:10, color:"#94a3b8" }}>{showPicks ? "▲" : "▼"}</span>
+              </button>
+
+              {/* Expanded picks panel */}
+              {showPicks && (
+                <div style={{ padding:"0 12px 14px", borderTop:"1px solid #f0f4ff" }}>
+                  {totalVotes === 0 ? (
+                    <div style={{ textAlign:"center", fontSize:12, color:"#94a3b8", padding:"12px 0" }}>
+                      No picks yet for this game
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", gap:10, marginTop:12 }}>
+                      {/* Away voters */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8,
+                          padding:"5px 8px", background:"linear-gradient(135deg,#eef2ff,#f5f3ff)",
+                          borderRadius:8, border:"1px solid #c7d2fe" }}>
+                          <TeamLogo abbr={game.visitor.abbreviation} size={16} />
+                          <span style={{ fontSize:10, fontWeight:900, color:"#4f46e5" }}>{game.visitor.abbreviation}</span>
+                          <span style={{ fontSize:9, color:"#4f46e5", marginLeft:"auto" }}>{awayPct}%</span>
+                        </div>
+                        {awayVoterEntries.length > 0
+                          ? awayVoterEntries.map(([uid, vote]) => <VoterRow key={uid} uid={uid} vote={vote} />)
+                          : <div style={{ fontSize:10, color:"#94a3b8", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>
+                        }
+                      </div>
+                      {/* Divider */}
+                      <div style={{ width:1, background:"#e0e7ff", flexShrink:0 }} />
+                      {/* Home voters */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8,
+                          padding:"5px 8px", background:"linear-gradient(135deg,#fffbeb,#fef3c7)",
+                          borderRadius:8, border:"1px solid #fde68a" }}>
+                          <TeamLogo abbr={game.home.abbreviation} size={16} />
+                          <span style={{ fontSize:10, fontWeight:900, color:"#92400e" }}>{game.home.abbreviation}</span>
+                          <span style={{ fontSize:9, color:"#92400e", marginLeft:"auto" }}>{homePct}%</span>
+                        </div>
+                        {homeVoterEntries.length > 0
+                          ? homeVoterEntries.map(([uid, vote]) => <VoterRow key={uid} uid={uid} vote={vote} />)
+                          : <div style={{ fontSize:10, color:"#94a3b8", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>
+                        }
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            {!currentUser && voteOpen && (
-              <div style={{ padding:"8px 14px", background:"#fffbeb", borderTop:"1px solid #fde68a",
-                fontSize:11, fontWeight:600, color:"#92400e", textAlign:"center" }}>
-                Sign in to place your pick 👆
-              </div>
-            )}
+              )}
+
+              {!currentUser && voteOpen && (
+                <div style={{ padding:"6px 14px 10px", background:"#fffbeb", borderTop:"1px solid #fde68a",
+                  fontSize:11, fontWeight:600, color:"#92400e", textAlign:"center" }}>
+                  Sign in to place your pick 👆
+                </div>
+              )}
+            </div>
           </div>
         );
       };
@@ -3090,7 +3424,7 @@
           <div style={{ marginBottom:20 }}>
             <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"#1e3a8a", marginBottom:4 }}>🎲 Stakes</h2>
             <p style={{ fontSize:isMobile?12:13, color:"#64748b", fontWeight:500 }}>
-              Pick the winners · Voting closes at <b>21:00 Israeli time</b> each day · Compete with friends
+              Pick the winners · Voting closes <b>1 hour before tip-off</b> · Compete with friends
             </p>
           </div>
 
@@ -3136,6 +3470,97 @@
                     </span>
                   </div>
                   {nextVoteDay.games.map(g => <VoteCard key={g.id} game={g} date={nextVoteDay.date} />)}
+
+                  {/* ── Friends' Picks frame ── */}
+                  {currentUser && (currentUser.friends ?? []).length > 0 && (() => {
+                    const friendUids = currentUser.friends ?? [];
+                    const gamesWithFriendVotes = nextVoteDay.games.map(g => {
+                      const allV = votes[`${nextVoteDay.date}_${g.id}`] ?? {};
+                      const fv = Object.entries(allV).filter(([uid]) => friendUids.includes(uid));
+                      return { game: g, friendVotes: fv };
+                    }).filter(({ friendVotes }) => friendVotes.length > 0);
+
+                    if (gamesWithFriendVotes.length === 0) return (
+                      <div style={{ background:"white", borderRadius:14, border:"1.5px dashed #c7d2fe",
+                        padding:"16px 18px", marginTop:4, textAlign:"center" }}>
+                        <div style={{ fontSize:20, marginBottom:6 }}>👥</div>
+                        <div style={{ fontWeight:700, color:"#1e3a8a", fontSize:13 }}>Friends haven't voted yet</div>
+                        <div style={{ fontSize:11, color:"#94a3b8", marginTop:4 }}>Check back after your friends place their picks!</div>
+                      </div>
+                    );
+
+                    return (
+                      <div style={{ background:"linear-gradient(135deg,#f0f4ff,#faf5ff)", borderRadius:14,
+                        border:"1.5px solid #c7d2fe", padding:"14px 16px", marginTop:4 }}>
+                        <div style={{ fontWeight:900, color:"#1e3a8a", fontSize:isMobile?13:14, marginBottom:12,
+                          display:"flex", alignItems:"center", gap:6 }}>
+                          👥 Friends' Picks
+                          <span style={{ fontSize:10, fontWeight:600, color:"#818cf8",
+                            background:"#eef2ff", borderRadius:20, padding:"2px 8px" }}>
+                            {friendUids.length} friend{friendUids.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        {gamesWithFriendVotes.map(({ game: g, friendVotes }) => {
+                          const awayFV = friendVotes.filter(([, v]) => v.teamAbbr === g.visitor.abbreviation);
+                          const homeFV = friendVotes.filter(([, v]) => v.teamAbbr === g.home.abbreviation);
+                          const tot = friendVotes.length;
+                          const awayFPct = Math.round(awayFV.length / tot * 100);
+                          const homeFPct = 100 - awayFPct;
+                          return (
+                            <div key={g.id} style={{ marginBottom:14, paddingBottom:14,
+                              borderBottom:"1px solid #e0e7ff" }}>
+                              {/* Game matchup line */}
+                              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                                <TeamLogo abbr={g.visitor.abbreviation} size={18} />
+                                <span style={{ fontSize:10, fontWeight:700, color:"#94a3b8" }}>@</span>
+                                <TeamLogo abbr={g.home.abbreviation} size={18} />
+                                <span style={{ fontSize:10, color:"#94a3b8", fontWeight:600, marginLeft:4 }}>
+                                  {tot} friend{tot !== 1 ? "s" : ""} voted
+                                </span>
+                              </div>
+                              {/* Friend voter chips with names */}
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
+                                {friendVotes.map(([uid, vote]) => {
+                                  const a = av(vote.avatar);
+                                  const pickedAway = vote.teamAbbr === g.visitor.abbreviation;
+                                  return (
+                                    <div key={uid} style={{ display:"flex", alignItems:"center", gap:4,
+                                      background: pickedAway ? "#eef2ff" : "#fffbeb",
+                                      borderRadius:20, padding:"4px 10px 4px 4px",
+                                      border: `1px solid ${pickedAway ? "#c7d2fe" : "#fde68a"}` }}>
+                                      <div style={{ width:22, height:22, borderRadius:"50%", background:a.bg,
+                                        display:"flex", alignItems:"center", justifyContent:"center", fontSize:11 }}>
+                                        {a.emoji}
+                                      </div>
+                                      <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#1e3a8a" }}>
+                                        {vote.username}
+                                      </span>
+                                      <TeamLogo abbr={vote.teamAbbr} size={14} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {/* Mini split bar */}
+                              <div>
+                                <div style={{ height:6, borderRadius:4, background:"#e0e7ff", overflow:"hidden", display:"flex" }}>
+                                  <div style={{ width:`${awayFPct}%`, background:"linear-gradient(90deg,#4f46e5,#818cf8)", transition:"width 0.4s" }} />
+                                  <div style={{ flex:1, background:"linear-gradient(90deg,#f59e0b,#fbbf24)" }} />
+                                </div>
+                                <div style={{ display:"flex", justifyContent:"space-between", marginTop:3 }}>
+                                  <span style={{ fontSize:9, color:"#4f46e5", fontWeight:700 }}>
+                                    {g.visitor.abbreviation} {awayFPct}%
+                                  </span>
+                                  <span style={{ fontSize:9, color:"#f59e0b", fontWeight:700 }}>
+                                    {homeFPct}% {g.home.abbreviation}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -3316,6 +3741,7 @@
       const isFavs     = view === "favorites";
       const isDontMiss = view === "dontmiss";
       const isStakes   = view === "stakes";
+      const isFriends  = view === "friends";
       const isTeam     = view?.type === "team";
       const isPlayer   = view?.type === "player";
 
@@ -3365,8 +3791,9 @@
                 { id:"favorites", label:`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
                 { id:"dontmiss",  label:"🔥 Don't Miss!" },
                 { id:"stakes",    label:"🎲 Stakes" },
+                { id:"friends",   label:`👥 Friends${currentUser && (currentUser.friends??[]).length > 0 ? ` (${(currentUser.friends??[]).length})` : ""}` },
               ].map(tab => {
-                const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : tab.id==="stakes" ? isStakes : isFavs||isTeam||isPlayer;
+                const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : isFavs||isTeam||isPlayer;
                 return (
                   <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"7px 13px":"7px 18px",
                     borderRadius:20, fontSize:isMobile?12:13, fontWeight:700, flexShrink:0,
@@ -3394,6 +3821,7 @@
                 standings={standings} spoilerMode={spoilerMode} />}
               {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
                 currentUser={currentUser} standings={standings} />}
+              {isFriends && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
