@@ -344,31 +344,49 @@
       return d.toISOString().split("T")[0];
     }
     function fmtDate(s) { return new Date(s + "T12:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric" }); }
-    // Parse BallDontLie status strings like "7:30 pm ET" into { time, ampm, tz }
+    // Parse BallDontLie status strings into { time, ampm, tz } — displayed in Jerusalem/Israel time
     function fmtGameTime(status) {
       if (!status) return null;
-      // Format 1: "7:30 pm ET" — BallDontLie box_scores / legacy format
+      // Format 1: "7:30 pm ET" — legacy format; convert to Israel time
       const m = status.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
       if (m) {
-        const tz = (status.match(/(ET|PT|CT|MT)/i) ?? [])[0] ?? "ET";
-        return { time: `${m[1]}:${m[2]}`, ampm: m[3].toUpperCase(), tz };
+        try {
+          const srcTz = /PT/i.test(status) ? "America/Los_Angeles"
+                      : /CT/i.test(status) ? "America/Chicago"
+                      : /MT/i.test(status) ? "America/Denver"
+                      :                      "America/New_York";
+          const today = new Date().toLocaleDateString("en-CA");
+          const etDate = new Date(`${today}T${m[1].padStart(2,"0")}:${m[2]}:00`);
+          // Adjust by converting "as if" it's that time in srcTz
+          const srcOffset = new Date().toLocaleString("en-US", { timeZone: srcTz, timeZoneName:"shortOffset" }).match(/GMT([+-]\d+)/)?.[1] ?? "-5";
+          etDate.setHours(etDate.getHours() - parseInt(srcOffset));
+          if (!isNaN(etDate.getTime())) {
+            const ilStr = new Intl.DateTimeFormat("en-US", {
+              timeZone: "Asia/Jerusalem", hour: "numeric", minute: "2-digit", hour12: true,
+            }).format(etDate);
+            const il = ilStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (il) return { time: `${il[1]}:${il[2]}`, ampm: il[3].toUpperCase(), tz: "IL" };
+          }
+        } catch(e) {}
+        return { time: `${m[1]}:${m[2]}`, ampm: m[3].toUpperCase(), tz: "IL" };
       }
       // Format 2: ISO timestamp "2026-03-01T00:30:00.000Z" — BallDontLie v1 /games API
       if (/^\d{4}-\d{2}-\d{2}T\d/.test(status)) {
         const d = new Date(status);
         if (!isNaN(d.getTime())) {
-          const etStr = new Intl.DateTimeFormat("en-US", {
-            timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true,
+          const ilStr = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Jerusalem", hour: "numeric", minute: "2-digit", hour12: true,
           }).format(d);
-          const iso = etStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (iso) return { time: `${iso[1]}:${iso[2]}`, ampm: iso[3].toUpperCase(), tz: "ET" };
+          const iso = ilStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (iso) return { time: `${iso[1]}:${iso[2]}`, ampm: iso[3].toUpperCase(), tz: "IL" };
         }
       }
       return null;
     }
     function dayLabel(s) {
-      if (s === dateStr(0)) return "Today";
-      if (s === dateStr(1)) return "Yesterday";
+      if (s === dateStr(-1)) return "Tomorrow";
+      if (s === dateStr(0))  return "Today";
+      if (s === dateStr(1))  return "Yesterday";
       return new Date(s + "T12:00:00").toLocaleDateString("en-US", { weekday:"short" });
     }
     const DATES = Array.from({ length: 7 }, (_, i) => dateStr(i));
@@ -878,11 +896,17 @@
                         <span style={{ fontSize:10, fontWeight:800, color:"#fbbf24", letterSpacing:"0.06em" }}>{side.abbreviation}</span>
                         <span style={{ marginLeft:"auto", fontSize:10, fontWeight:900, color:"white" }}>{side.score}</span>
                       </div>
-                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11, tableLayout:"fixed" }}>
+                        <colgroup>
+                          <col style={{ width:"auto" }} />
+                          <col style={{ width:36 }} />
+                          <col style={{ width:36 }} />
+                          <col style={{ width:36 }} />
+                        </colgroup>
                         <thead>
                           <tr style={{ background:"rgba(245,158,11,0.1)" }}>
-                            <th style={{ textAlign:"left", padding:"4px 12px", fontWeight:600, color:"#fbbf24", fontSize:10 }}>Player</th>
-                            {["PTS","REB","AST"].map(h => <th key={h} style={{ padding:"4px 8px", textAlign:"center", fontWeight:600, color:"#fbbf24", fontSize:10 }}>{h}</th>)}
+                            <th style={{ textAlign:"left", padding:"4px 10px", fontWeight:600, color:"#fbbf24", fontSize:10 }}>Player</th>
+                            {["PTS","REB","AST"].map(h => <th key={h} style={{ width:36, padding:"4px 4px", textAlign:"center", fontWeight:600, color:"#fbbf24", fontSize:10 }}>{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>
@@ -890,12 +914,12 @@
                             const pl = p.player ?? {};
                             return (
                               <tr key={pl.id??i} style={{ background:i%2===0?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.02)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                                <td style={{ padding:"5px 12px" }}>
-                                  <span style={{ color:"white", fontWeight:500, whiteSpace:"nowrap" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
+                                <td style={{ padding:"5px 10px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                  <span style={{ color:"white", fontWeight:500 }}>{pl.first_name?.[0]}. {pl.last_name}</span>
                                 </td>
-                                <td style={{ padding:"5px 8px", textAlign:"center", fontWeight:800, color:"white" }}>{p.pts??"—"}</td>
-                                <td style={{ padding:"5px 8px", textAlign:"center", color:"#60a5fa" }}>{p.reb??"—"}</td>
-                                <td style={{ padding:"5px 8px", textAlign:"center", color:"#60a5fa" }}>{p.ast??"—"}</td>
+                                <td style={{ width:36, padding:"5px 4px", textAlign:"center", fontWeight:800, color:"white" }}>{p.pts??"—"}</td>
+                                <td style={{ width:36, padding:"5px 4px", textAlign:"center", color:"#60a5fa" }}>{p.reb??"—"}</td>
+                                <td style={{ width:36, padding:"5px 4px", textAlign:"center", color:"#60a5fa" }}>{p.ast??"—"}</td>
                               </tr>
                             );
                           })}
@@ -2273,7 +2297,7 @@
           <div style={{ background:"transparent" }}>
             <div style={{ maxWidth:1280, margin:"0 auto", padding:isMobile?"12px 16px 10px":"14px 24px 12px" }}>
               <div style={{ display:"flex", gap:isMobile?6:8, overflowX:"auto", paddingBottom:4 }} className="mobile-scroll">
-                {DATES.map(d => {
+                {[FUTURE_DATES[0], ...DATES].map(d => {
                   const active = d === selected;
                   return (
                     <button key={d} onClick={() => setSelected(d)} style={{ flexShrink:0, minWidth:isMobile?60:72,
