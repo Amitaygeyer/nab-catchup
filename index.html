@@ -2873,7 +2873,7 @@
     }
 
     // ── Friends View ──────────────────────────────────────────────────────────────
-    function FriendsView({ currentUser, setCurrentUser }) {
+    function FriendsView({ currentUser, setCurrentUser, leaderboard }) {
       const isMobile = useWindowWidth() < 600;
       const [search,         setSearch]         = useState("");
       const [searchResult,   setSearchResult]   = useState(null); // null | "loading" | "not_found" | "self" | {uid,...}
@@ -2913,7 +2913,7 @@
       const addFriend = async (uid) => {
         if (!currentUser || !fbDb) return;
         const newFriends = [...friendUids, uid];
-        await fbDb.collection("users").doc(currentUser.uid).update({ friends: newFriends }).catch(() => {});
+        await fbDb.collection("users").doc(currentUser.uid).set({ friends: newFriends }, { merge: true }).catch(() => {});
         setCurrentUser(prev => ({ ...prev, friends: newFriends }));
         setSearchResult(null); setSearch("");
       };
@@ -2921,7 +2921,7 @@
       const removeFriend = async (uid) => {
         if (!currentUser || !fbDb) return;
         const newFriends = friendUids.filter(f => f !== uid);
-        await fbDb.collection("users").doc(currentUser.uid).update({ friends: newFriends }).catch(() => {});
+        await fbDb.collection("users").doc(currentUser.uid).set({ friends: newFriends }, { merge: true }).catch(() => {});
         setCurrentUser(prev => ({ ...prev, friends: newFriends }));
       };
 
@@ -3054,57 +3054,76 @@
               const p = friendProfiles[uid];
               if (!p) return null;
               const a = av(p.avatar ?? AVATARS[0].id);
-              const favTeam   = (p.favTeams   ?? [])[0];
-              const favPlayer = (p.favPlayers ?? [])[0];
+              const favTeams   = p.favTeams   ?? [];
+              const favPlayers = p.favPlayers ?? [];
+              const lbEntry    = (leaderboard ?? []).find(u => u.uid === uid);
+              const hasFavs    = favTeams.length > 0 || favPlayers.length > 0;
               return (
                 <div key={uid} style={{
                   background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                   borderRadius:14, border:"1px solid rgba(245,158,11,0.18)", padding:"14px 16px",
-                  display:"flex", alignItems:"center", gap:14,
                   boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>
-                  {/* Avatar */}
-                  <div style={{ width:50, height:50, borderRadius:"50%", background:a.bg, flexShrink:0,
-                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:26,
-                    border:"2px solid rgba(255,255,255,0.25)",
-                    boxShadow:`0 0 0 3px ${a.bg}55` }}>
-                    {a.emoji}
-                  </div>
-                  {/* Info */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:900, color:"white", fontSize:isMobile?14:16 }}>
-                      {p.username}
+                  {/* Top row: avatar + name + vote stats + remove */}
+                  <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <div style={{ width:50, height:50, borderRadius:"50%", background:a.bg, flexShrink:0,
+                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:26,
+                      border:"2px solid rgba(255,255,255,0.25)",
+                      boxShadow:`0 0 0 3px ${a.bg}55` }}>
+                      {a.emoji}
                     </div>
-                    <div style={{ display:"flex", gap:isMobile?8:12, marginTop:6,
-                      alignItems:"center", flexWrap:"wrap" }}>
-                      {favTeam && (
-                        <div style={{ display:"flex", alignItems:"center", gap:4,
-                          fontSize:11, color:"rgba(255,255,255,0.65)", fontWeight:700 }}>
-                          <span style={{ fontSize:10 }}>⭐</span>
-                          <TeamLogo abbr={favTeam} size={18} />
-                          <span>{favTeam}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:900, color:"white", fontSize:isMobile?14:16, marginBottom:4 }}>
+                        {p.username}
+                      </div>
+                      {/* Vote stats */}
+                      {lbEntry ? (
+                        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                          <span style={{ fontSize:11, fontWeight:800,
+                            color: lbEntry.pct >= 60 ? "#4ade80" : lbEntry.pct >= 50 ? "#fbbf24" : "#f87171",
+                            background: lbEntry.pct >= 60 ? "rgba(74,222,128,0.12)" : lbEntry.pct >= 50 ? "rgba(251,191,36,0.12)" : "rgba(248,113,113,0.12)",
+                            border: `1px solid ${lbEntry.pct >= 60 ? "rgba(74,222,128,0.3)" : lbEntry.pct >= 50 ? "rgba(251,191,36,0.3)" : "rgba(248,113,113,0.3)"}`,
+                            borderRadius:6, padding:"2px 8px" }}>
+                            {lbEntry.pct}% correct
+                          </span>
+                          <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)", fontWeight:600 }}>
+                            {lbEntry.correct}W · {lbEntry.total - lbEntry.correct}L · {lbEntry.total} picks
+                          </span>
                         </div>
-                      )}
-                      {favPlayer && (
-                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.65)", fontWeight:700,
-                          display:"flex", alignItems:"center", gap:4 }}>
-                          <span>🏀</span>
-                          <span>{favPlayer.first_name} {favPlayer.last_name}</span>
-                        </div>
-                      )}
-                      {!favTeam && !favPlayer && (
-                        <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>
-                          No favourites set
-                        </span>
+                      ) : (
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>No picks yet</span>
                       )}
                     </div>
+                    <button onClick={() => removeFriend(uid)}
+                      style={{ padding:"6px 14px", background:"rgba(239,68,68,0.15)", color:"#fca5a5",
+                        borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", fontSize:12,
+                        fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                      Remove
+                    </button>
                   </div>
-                  {/* Remove */}
-                  <button onClick={() => removeFriend(uid)}
-                    style={{ padding:"6px 14px", background:"rgba(239,68,68,0.15)", color:"#fca5a5",
-                      borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", fontSize:12,
-                      fontWeight:700, cursor:"pointer", flexShrink:0 }}>
-                    Remove
-                  </button>
+                  {/* Favourites row */}
+                  {hasFavs && (
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.08)",
+                      display:"flex", gap:isMobile?8:12, flexWrap:"wrap", alignItems:"center" }}>
+                      {/* All fav teams */}
+                      {favTeams.map(abbr => (
+                        <div key={abbr} style={{ display:"flex", alignItems:"center", gap:4,
+                          background:"rgba(255,255,255,0.07)", borderRadius:8, padding:"4px 8px" }}>
+                          <TeamLogo abbr={abbr} size={18} />
+                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.7)", fontWeight:700 }}>{abbr}</span>
+                        </div>
+                      ))}
+                      {/* All fav players */}
+                      {favPlayers.map((pl, idx) => (
+                        <div key={idx} style={{ display:"flex", alignItems:"center", gap:4,
+                          background:"rgba(255,255,255,0.07)", borderRadius:8, padding:"4px 8px" }}>
+                          <span style={{ fontSize:12 }}>🏀</span>
+                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.7)", fontWeight:700 }}>
+                            {pl.first_name} {pl.last_name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -3114,11 +3133,9 @@
     }
 
     // ── Stakes View ───────────────────────────────────────────────────────────────
-    function StakesView({ gameCache, loadDate, currentUser, standings }) {
+    function StakesView({ gameCache, loadDate, currentUser, standings, votes, loadingVotes, leaderboard }) {
       const isMobile = useWindowWidth() < 600;
       const [tab,          setTab]          = useState("vote");
-      const [votes,        setVotes]        = useState({});   // key: `${date}_${gameId}` → { [userId]: {teamAbbr,username,avatar} }
-      const [loadingVotes, setLoadingVotes] = useState(true);
       const [submitting,   setSubmitting]   = useState(null); // gameId being submitted
 
       // Vote dates: today + next 2 days. Result dates: yesterday + 2 more past days.
@@ -3252,25 +3269,7 @@
           ? ((g.home.score > g.visitor.score) ? g.home.abbreviation : g.visitor.abbreviation)
           : null;
 
-      // All-time leaderboard — uses every date in gameCache that has Final games
-      const leaderboard = React.useMemo(() => {
-        const stats = {};
-        Object.entries(gameCache).forEach(([date, games]) => {
-          (games ?? []).forEach(game => {
-            const winner = getWinner(game);
-            if (!winner) return;
-            const key = `${date}_${game.id}`;
-            Object.entries(votes[key] ?? {}).forEach(([uid, vote]) => {
-              if (!stats[uid]) stats[uid] = { username: vote.username, avatar: vote.avatar, correct: 0, total: 0, uid };
-              stats[uid].total++;
-              if (vote.teamAbbr === winner) stats[uid].correct++;
-            });
-          });
-        });
-        return Object.entries(stats)
-          .map(([uid, s]) => ({ uid, ...s, pct: s.total > 0 ? Math.round(s.correct / s.total * 100) : 0 }))
-          .sort((a, b) => b.pct !== a.pct ? b.pct - a.pct : b.correct - a.correct || b.total - a.total);
-      }, [votes, gameCache]);
+      // leaderboard is passed as a prop from App (globalLeaderboard)
 
       const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
       const myVoteFor = (gameId, date) => votes[`${date}_${gameId}`]?.[currentUser?.uid]?.teamAbbr ?? null;
@@ -3918,76 +3917,95 @@
           )}
 
           {/* ── LEADERBOARD TAB ── */}
-          {tab === "leaderboard" && (
-            <div>
-              {leaderboard.length === 0 ? (
-                <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
-                  border:"1px solid rgba(245,158,11,0.22)" }}>
-                  <div style={{ fontSize:48, marginBottom:12 }}>🏆</div>
-                  <div style={{ fontWeight:700, color:"white" }}>Leaderboard coming soon</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Make picks and finish games to see rankings!</div>
+          {tab === "leaderboard" && (() => {
+            if (leaderboard.length === 0) return (
+              <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
+                border:"1px solid rgba(245,158,11,0.22)" }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>🏆</div>
+                <div style={{ fontWeight:700, color:"white" }}>Leaderboard coming soon</div>
+                <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Make picks and finish games to see rankings!</div>
+              </div>
+            );
+
+            // Sort for each leaderboard
+            const mostWins = [...leaderboard].sort((a, b) => b.correct !== a.correct ? b.correct - a.correct : b.pct - a.pct);
+            const smartScore = u => Math.round(u.correct * u.correct / Math.max(u.total, 1));
+            const smartLB = [...leaderboard].sort((a, b) => smartScore(b) !== smartScore(a) ? smartScore(b) - smartScore(a) : b.correct - a.correct);
+
+            const LBTable = ({ rows, scoreCol, scoreFn, scoreLabel, accentColor, headerGrad, caption }) => (
+              <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+                borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden", marginBottom:16 }}>
+                <div style={{ background:headerGrad, padding:"12px 20px", display:"flex", gap:isMobile?8:14, alignItems:"center" }}>
+                  <span style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white", flex:1 }}>{scoreCol}</span>
+                  <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>W</span>
+                  <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>L</span>
+                  <span style={{ width:isMobile?52:68, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"right" }}>{scoreLabel}</span>
                 </div>
-              ) : (
-                <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16, border:"1px solid rgba(245,158,11,0.22)",
-                  boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden" }}>
-                  {/* Header */}
-                  <div style={{ background:"linear-gradient(135deg,#1e1b4b,#312e81)", padding:"14px 20px",
-                    display:"flex", gap:isMobile?8:14, alignItems:"center" }}>
-                    <span style={{ width:32, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>RANK</span>
-                    <span style={{ flex:1, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", letterSpacing:"0.08em" }}>PLAYER</span>
-                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>W</span>
-                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>L</span>
-                    <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>%</span>
-                  </div>
-                  {leaderboard.map((user, i) => {
-                    const a = av(user.avatar);
-                    const isMe = user.uid === currentUser?.uid;
-                    const losses = user.total - user.correct;
-                    return (
-                      <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?8:14,
-                        padding:isMobile?"10px 14px":"12px 20px",
-                        background: isMe ? "rgba(99,102,241,0.2)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                        borderBottom: i < leaderboard.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                        borderLeft: isMe ? "3px solid #6366f1" : "3px solid transparent" }}>
-                        <div style={{ width:32, textAlign:"center", fontSize:i < 3 ? 18 : 12,
-                          fontWeight:900, color:medalColor(i), flexShrink:0 }}>
-                          {medalEmoji(i)}
+                {rows.map((user, i) => {
+                  const a = av(user.avatar);
+                  const isMe = user.uid === currentUser?.uid;
+                  const losses = user.total - user.correct;
+                  const score = scoreFn(user);
+                  return (
+                    <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?8:14,
+                      padding:isMobile?"10px 14px":"12px 20px",
+                      background: isMe ? "rgba(99,102,241,0.18)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                      borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                      borderLeft: isMe ? "3px solid #6366f1" : "3px solid transparent" }}>
+                      <div style={{ width:28, textAlign:"center", fontSize:i < 3 ? 18 : 11, fontWeight:900, color:medalColor(i), flexShrink:0 }}>
+                        {medalEmoji(i)}
+                      </div>
+                      <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+                        <div style={{ width:isMobile?26:32, height:isMobile?26:32, borderRadius:"50%",
+                          background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
+                          fontSize:isMobile?13:15, flexShrink:0, boxShadow: isMe ? "0 0 0 2px #6366f1" : "none" }}>
+                          {a.emoji}
                         </div>
-                        <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-                          <div style={{ width:isMobile?28:34, height:isMobile?28:34, borderRadius:"50%",
-                            background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
-                            fontSize:isMobile?14:16, flexShrink:0,
-                            boxShadow: isMe ? "0 0 0 2px #6366f1" : "none" }}>
-                            {a.emoji}
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white",
+                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                            {user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:5, fontWeight:700 }}>YOU</span>}
                           </div>
-                          <div style={{ minWidth:0 }}>
-                            <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white",
-                              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                              {user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:5, fontWeight:700 }}>YOU</span>}
-                            </div>
-                            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""} total</div>
-                          </div>
-                        </div>
-                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
-                          fontWeight:800, color:"#4ade80" }}>{user.correct}</div>
-                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
-                          fontWeight:800, color:"#f87171" }}>{losses}</div>
-                        <div style={{ width:isMobile?44:60, textAlign:"right" }}>
-                          <span style={{ fontSize:isMobile?14:16, fontWeight:900,
-                            color: user.pct >= 60 ? "#4ade80" : user.pct >= 50 ? "#fbbf24" : "#f87171" }}>
-                            {user.pct}%
-                          </span>
+                          <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""}</div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div style={{ marginTop:12, fontSize:11, color:"rgba(255,255,255,0.4)", textAlign:"center" }}>
-                All-time rankings · all completed games
+                      <div style={{ width:isMobile?44:60, textAlign:"center", fontSize:isMobile?12:13, fontWeight:800, color:"#4ade80" }}>{user.correct}</div>
+                      <div style={{ width:isMobile?44:60, textAlign:"center", fontSize:isMobile?12:13, fontWeight:800, color:"#f87171" }}>{losses}</div>
+                      <div style={{ width:isMobile?52:68, textAlign:"right" }}>
+                        <span style={{ fontSize:isMobile?14:16, fontWeight:900, color:accentColor }}>
+                          {score}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ padding:"8px 20px", fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right" }}>{caption}</div>
               </div>
-            </div>
-          )}
+            );
+
+            return (
+              <div>
+                <LBTable
+                  rows={mostWins}
+                  scoreCol="🏆 Most Correct Picks"
+                  scoreFn={u => u.correct}
+                  scoreLabel="WINS"
+                  accentColor="#4ade80"
+                  headerGrad="linear-gradient(135deg,#064e3b,#065f46)"
+                  caption="Ranked by total correct picks · all-time"
+                />
+                <LBTable
+                  rows={smartLB}
+                  scoreCol="⚡ Smart Score"
+                  scoreFn={u => smartScore(u)}
+                  scoreLabel="SCORE"
+                  accentColor="#fbbf24"
+                  headerGrad="linear-gradient(135deg,#78350f,#92400e)"
+                  caption="Score = wins² ÷ total picks · rewards consistency + volume"
+                />
+              </div>
+            );
+          })()}
 
           {/* ── FRIENDS LEADERBOARD TAB ── */}
           {tab === "friends-lb" && (() => {
@@ -4099,6 +4117,47 @@
       const [favPlayers,  setFavPlayers]  = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-players")??"[]"); } catch { return []; } });
       const [currentUser,  setCurrentUser]  = useState(null);
       const [accountOpen,  setAccountOpen]  = useState(false);
+
+      // ── Global votes state (lifted here so FriendsView can read leaderboard) ────
+      const [votes,        setVotes]        = useState({});
+      const [loadingVotes, setLoadingVotes] = useState(true);
+
+      useEffect(() => {
+        if (!fbDb) { setLoadingVotes(false); return; }
+        const unsub = fbDb.collection("votes").onSnapshot(snap => {
+          const v = {};
+          snap.docs.forEach(doc => {
+            const d = doc.data();
+            const key = `${d.date}_${d.gameId}`;
+            if (!v[key]) v[key] = {};
+            v[key][d.userId] = { teamAbbr: d.teamAbbr, username: d.username, avatar: d.avatar ?? AVATARS[0].id };
+          });
+          setVotes(v);
+          setLoadingVotes(false);
+        }, () => setLoadingVotes(false));
+        return () => unsub();
+      }, []);
+
+      // Compute global leaderboard from votes + gameCache (needed in both Stakes + Friends)
+      const globalLeaderboard = React.useMemo(() => {
+        const getW = g => g.status === "Final" && g.home.score != null && g.visitor.score != null
+          ? (g.home.score > g.visitor.score ? g.home.abbreviation : g.visitor.abbreviation) : null;
+        const stats = {};
+        Object.entries(gameCache).forEach(([date, games]) => {
+          (games ?? []).forEach(game => {
+            const winner = getW(game);
+            if (!winner) return;
+            const key = `${date}_${game.id}`;
+            Object.entries(votes[key] ?? {}).forEach(([uid, vote]) => {
+              if (!stats[uid]) stats[uid] = { username: vote.username, avatar: vote.avatar, correct: 0, total: 0, uid };
+              stats[uid].total++;
+              if (vote.teamAbbr === winner) stats[uid].correct++;
+            });
+          });
+        });
+        return Object.entries(stats)
+          .map(([uid, s]) => ({ uid, ...s, pct: s.total > 0 ? Math.round(s.correct / s.total * 100) : 0 }));
+      }, [votes, gameCache]);
 
       const gameCacheRef = useRef({});
       useEffect(() => { gameCacheRef.current = gameCache; }, [gameCache]);
@@ -4254,8 +4313,10 @@
               {isDontMiss && <DontMissView gameCache={gameCache} loadDate={loadDate}
                 standings={standings} spoilerMode={spoilerMode} />}
               {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
-                currentUser={currentUser} standings={standings} />}
-              {isFriends && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser} />}
+                currentUser={currentUser} standings={standings}
+                votes={votes} loadingVotes={loadingVotes} leaderboard={globalLeaderboard} />}
+              {isFriends && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser}
+                leaderboard={globalLeaderboard} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
