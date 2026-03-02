@@ -126,7 +126,7 @@
     const API_V1  = "https://api.balldontlie.io/v1";
     const API_KEY = "60bc54f3-f8d0-4f96-b7c0-bd6cb513e7ef";
     const SEASON  = 2025; // 2025-26 season
-    const logoUrl = abbr => `https://a.espncdn.com/i/teamlogos/nba/500/${(abbr ?? "").toLowerCase()}.png`;
+    const logoUrl = abbr => `https://a.espncdn.com/i/teamlogos/nba/500/${String(abbr ?? "").toLowerCase()}.png`;
 
     // ── TheSportsDB photo cache & fetcher ────────────────────────────────────────
     // key: "Firstname Lastname" → URL string | null (null = tried, not found)
@@ -515,15 +515,16 @@
 
     // ── TeamLogo ─────────────────────────────────────────────────────────────────
     function TeamLogo({ abbr, size = 52 }) {
+      const safeAbbr = String(abbr ?? "");   // always a string, even if passed an object/number
       const [failed, setFailed] = useState(false);
       if (failed) return (
         <div style={{ width:size, height:size, borderRadius:8, background:"rgba(245,158,11,0.18)",
           display:"flex", alignItems:"center", justifyContent:"center",
           fontSize:size*0.27, fontWeight:900, color:"#fbbf24" }}>
-          {(abbr ?? "?").slice(0,3).toUpperCase()}
+          {(safeAbbr || "?").slice(0,3).toUpperCase()}
         </div>
       );
-      return <img src={logoUrl(abbr)} alt={abbr ?? ""} width={size} height={size}
+      return <img src={logoUrl(safeAbbr)} alt={safeAbbr} width={size} height={size}
         style={{ objectFit:"contain" }} onError={() => setFailed(true)} />;
     }
 
@@ -2997,9 +2998,10 @@
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:900, color:"white", fontSize:15 }}>{searchResult.username}</div>
                   <div style={{ display:"flex", gap:5, marginTop:4, flexWrap:"wrap", alignItems:"center" }}>
-                    {(searchResult.favTeams ?? []).slice(0, 4).map(abbr => (
-                      <TeamLogo key={abbr} abbr={abbr} size={18} />
-                    ))}
+                    {(searchResult.favTeams ?? []).slice(0, 4).map((t, i) => {
+                      const abbr = typeof t === "string" ? t : (t?.abbreviation ?? "");
+                      return abbr ? <TeamLogo key={i} abbr={abbr} size={18} /> : null;
+                    })}
                     {(searchResult.favTeams ?? []).length === 0 && (
                       <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>No favourite teams</span>
                     )}
@@ -3054,8 +3056,8 @@
               const p = friendProfiles[uid];
               if (!p) return null;
               const a = av(p.avatar ?? AVATARS[0].id);
-              const favTeams   = p.favTeams   ?? [];
-              const favPlayers = p.favPlayers ?? [];
+              const favTeams   = (p.favTeams   ?? []).map(t => typeof t === "string" ? t : (t?.abbreviation ?? "")).filter(Boolean);
+              const favPlayers = (p.favPlayers ?? []).filter(pl => pl && typeof pl === "object");
               const lbEntry    = (leaderboard ?? []).find(u => u.uid === uid);
               const hasFavs    = favTeams.length > 0 || favPlayers.length > 0;
               return (
