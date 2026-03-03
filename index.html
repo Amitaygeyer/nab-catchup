@@ -2043,16 +2043,16 @@
     // ── Top Performers ───────────────────────────────────────────────────────────
     // ── Player rank tier system ────────────────────────────────────────────────
     const PLAYER_RANKS = [
-      { label:"Rookie",      min:0,   max:9,        color:"#94a3b8", textColor:"#e2e8f0", bg:"linear-gradient(135deg,#1e293b,#334155)",                               glow:"rgba(148,163,184,0.4)",  ringBg:"linear-gradient(135deg,#475569,#64748b,#334155)" },
-      { label:"Prospect",    min:10,  max:24,       color:"#6ee7b7", textColor:"#d1fae5", bg:"linear-gradient(135deg,#064e3b,#065f46)",                               glow:"rgba(110,231,183,0.45)", ringBg:"linear-gradient(135deg,#065f46,#6ee7b7,#064e3b)" },
-      { label:"Starter",     min:25,  max:49,       color:"#4ade80", textColor:"#dcfce7", bg:"linear-gradient(135deg,#14532d,#16a34a)",                               glow:"rgba(74,222,128,0.5)",   ringBg:"linear-gradient(135deg,#15803d,#4ade80,#14532d)" },
-      { label:"Veteran",     min:50,  max:99,       color:"#38bdf8", textColor:"#e0f2fe", bg:"linear-gradient(135deg,#0c4a6e,#0369a1)",                               glow:"rgba(56,189,248,0.5)",   ringBg:"linear-gradient(135deg,#0284c7,#38bdf8,#0c4a6e)" },
-      { label:"All-Star",    min:100, max:174,      color:"#60a5fa", textColor:"#dbeafe", bg:"linear-gradient(135deg,#1e3a8a,#2563eb)",                               glow:"rgba(96,165,250,0.55)",  ringBg:"linear-gradient(135deg,#1d4ed8,#60a5fa,#1e3a8a)" },
-      { label:"All-NBA",     min:175, max:274,      color:"#818cf8", textColor:"#e0e7ff", bg:"linear-gradient(135deg,#1e1b4b,#3730a3)",                               glow:"rgba(129,140,248,0.55)", ringBg:"linear-gradient(135deg,#3730a3,#818cf8,#1e1b4b)" },
-      { label:"MVP",         min:275, max:399,      color:"#c084fc", textColor:"#f3e8ff", bg:"linear-gradient(135deg,#581c87,#7e22ce)",                               glow:"rgba(192,132,252,0.6)",  ringBg:"linear-gradient(135deg,#7e22ce,#c084fc,#581c87)" },
-      { label:"Champion",    min:400, max:599,      color:"#f472b6", textColor:"#fce7f3", bg:"linear-gradient(135deg,#831843,#be185d)",                               glow:"rgba(244,114,182,0.6)",  ringBg:"linear-gradient(135deg,#be185d,#f472b6,#831843)" },
-      { label:"Hall of Fame",min:600, max:899,      color:"#fb923c", textColor:"#ffedd5", bg:"linear-gradient(135deg,#7c2d12,#c2410c)",                               glow:"rgba(251,146,60,0.65)",  ringBg:"linear-gradient(135deg,#ea580c,#fb923c,#7c2d12)" },
-      { label:"Legend",      min:900, max:Infinity, color:"#fbbf24", textColor:"#fff7e6", bg:"linear-gradient(135deg,#78350f,#d97706,#fbbf24,#d97706,#78350f)",       glow:"rgba(251,191,36,0.75)",  ringBg:"linear-gradient(135deg,#b45309,#fde68a,#f59e0b,#fde68a,#b45309)" },
+      { label:"Rookie",      icon:"CircleDot", min:0,   max:9,        color:"#94a3b8", textColor:"#e2e8f0", bg:"linear-gradient(135deg,#1e293b,#334155)",                               glow:"rgba(148,163,184,0.4)",  ringBg:"linear-gradient(135deg,#475569,#64748b,#334155)" },
+      { label:"Prospect",    icon:"TrendingUp",min:10,  max:24,       color:"#6ee7b7", textColor:"#d1fae5", bg:"linear-gradient(135deg,#064e3b,#065f46)",                               glow:"rgba(110,231,183,0.45)", ringBg:"linear-gradient(135deg,#065f46,#6ee7b7,#064e3b)" },
+      { label:"Starter",     icon:"Play",      min:25,  max:49,       color:"#4ade80", textColor:"#dcfce7", bg:"linear-gradient(135deg,#14532d,#16a34a)",                               glow:"rgba(74,222,128,0.5)",   ringBg:"linear-gradient(135deg,#15803d,#4ade80,#14532d)" },
+      { label:"Veteran",     icon:"Shield",    min:50,  max:99,       color:"#38bdf8", textColor:"#e0f2fe", bg:"linear-gradient(135deg,#0c4a6e,#0369a1)",                               glow:"rgba(56,189,248,0.5)",   ringBg:"linear-gradient(135deg,#0284c7,#38bdf8,#0c4a6e)" },
+      { label:"All-Star",    icon:"Star",      min:100, max:174,      color:"#60a5fa", textColor:"#dbeafe", bg:"linear-gradient(135deg,#1e3a8a,#2563eb)",                               glow:"rgba(96,165,250,0.55)",  ringBg:"linear-gradient(135deg,#1d4ed8,#60a5fa,#1e3a8a)" },
+      { label:"All-NBA",     icon:"Award",     min:175, max:274,      color:"#818cf8", textColor:"#e0e7ff", bg:"linear-gradient(135deg,#1e1b4b,#3730a3)",                               glow:"rgba(129,140,248,0.55)", ringBg:"linear-gradient(135deg,#3730a3,#818cf8,#1e1b4b)" },
+      { label:"MVP",         icon:"Trophy",    min:275, max:399,      color:"#c084fc", textColor:"#f3e8ff", bg:"linear-gradient(135deg,#581c87,#7e22ce)",                               glow:"rgba(192,132,252,0.6)",  ringBg:"linear-gradient(135deg,#7e22ce,#c084fc,#581c87)" },
+      { label:"Champion",    icon:"Zap",       min:400, max:599,      color:"#f472b6", textColor:"#fce7f3", bg:"linear-gradient(135deg,#831843,#be185d)",                               glow:"rgba(244,114,182,0.6)",  ringBg:"linear-gradient(135deg,#be185d,#f472b6,#831843)" },
+      { label:"Hall of Fame",icon:"Flame",     min:600, max:899,      color:"#fb923c", textColor:"#ffedd5", bg:"linear-gradient(135deg,#7c2d12,#c2410c)",                               glow:"rgba(251,146,60,0.65)",  ringBg:"linear-gradient(135deg,#ea580c,#fb923c,#7c2d12)" },
+      { label:"Legend",      icon:"Target",    min:900, max:Infinity, color:"#fbbf24", textColor:"#fff7e6", bg:"linear-gradient(135deg,#78350f,#d97706,#fbbf24,#d97706,#78350f)",       glow:"rgba(251,191,36,0.75)",  ringBg:"linear-gradient(135deg,#b45309,#fde68a,#f59e0b,#fde68a,#b45309)" },
     ];
     const getRank = correct => PLAYER_RANKS.find(r => (correct??0) >= r.min && (correct??0) <= r.max) ?? PLAYER_RANKS[0];
 
@@ -2060,12 +2060,14 @@
     const RankBadge = ({ correct, size="sm" }) => {
       const r = getRank(correct);
       const isLg = size === "lg";
+      const iconSz = isLg ? 13 : 9;
       return (
-        <span style={{ display:"inline-flex", alignItems:"center", gap:3, flexShrink:0,
+        <span style={{ display:"inline-flex", alignItems:"center", gap: isLg?5:3, flexShrink:0,
           background:r.bg, borderRadius:20, border:`1px solid ${r.color}55`,
           padding: isLg ? "4px 10px" : "2px 7px",
           fontSize: isLg ? 12 : 9, fontWeight:900, color:r.textColor,
-          boxShadow:`0 0 ${isLg?10:6}px ${r.glow}`, letterSpacing:"0.04em" }}>
+          boxShadow:`0 0 ${isLg?12:7}px ${r.glow}`, letterSpacing:"0.04em" }}>
+          <SI n={r.icon} size={iconSz} color={r.textColor} />
           {r.label}
         </span>
       );
@@ -2090,8 +2092,10 @@
           {showRank && (
             <div style={{ position:"absolute", bottom:-4, left:"50%", transform:"translateX(-50%)",
               background:r.bg, border:`1px solid ${r.color}55`, borderRadius:10,
-              padding:"1px 5px", fontSize:8, fontWeight:900, color:r.textColor,
-              whiteSpace:"nowrap", boxShadow:`0 2px 6px ${r.glow}` }}>
+              padding:"2px 5px", fontSize:8, fontWeight:900, color:r.textColor,
+              whiteSpace:"nowrap", boxShadow:`0 2px 6px ${r.glow}`,
+              display:"flex", alignItems:"center", gap:3 }}>
+              <SI n={r.icon} size={8} color={r.textColor} />
               {r.label}
             </div>
           )}
@@ -2610,9 +2614,15 @@
           )}
 
           {/* Search tabs */}
-          <div style={{ display:"flex", gap:isMobile?6:8, marginBottom:isMobile?12:18, flexWrap:"wrap" }}>
-            <TabBtn id="players" label={<><SI n="User" size={12} />{isMobile?"":" Search Players"}</>} />
-            <TabBtn id="teams"   label={<><SI n="Shield" size={12} />{isMobile?"":" Search Teams"}</>} />
+          <div style={{ display:"flex", gap:isMobile?6:8, marginBottom:isMobile?12:18, flexWrap:"wrap", alignItems:"flex-end" }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.4)", letterSpacing:"0.08em", textTransform:"uppercase", paddingLeft:4 }}>Search Players</span>
+              <TabBtn id="players" label={<><SI n="User" size={12} /> Players</>} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.4)", letterSpacing:"0.08em", textTransform:"uppercase", paddingLeft:4 }}>Search Teams</span>
+              <TabBtn id="teams" label={<><SI n="Shield" size={12} /> Teams</>} />
+            </div>
           </div>
 
           {/* Players search */}
@@ -3442,6 +3452,64 @@
       // leaderboard is passed as a prop from App (globalLeaderboard)
 
       const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
+
+      // ── Shared scoring helpers (used by both leaderboard + friends-lb tabs) ──
+      const smartScore = u => {
+        const base = u.correct * u.correct / Math.max(u.total, 1);
+        const spreadBonus = u.spreadPct != null ? (1 + u.spreadPct / 200) : 1;
+        return Math.round(base * spreadBonus * 10) / 10;
+      };
+
+      const LBTable = ({ rows, scoreCol, scoreFn, scoreLabel, accentColor, headerGrad, caption, showSpread, icon }) => (
+        <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+          borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden", marginBottom:16 }}>
+          <div style={{ background:headerGrad, padding:"12px 20px", display:"flex", gap:isMobile?6:12, alignItems:"center" }}>
+            <span style={{ fontSize:isMobile?12:14, fontWeight:900, color:"white", flex:1, display:"flex", alignItems:"center", gap:6 }}>{icon && <SI n={icon} size={isMobile?13:15} />}{scoreCol}</span>
+            <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>W</span>
+            <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>L</span>
+            {showSpread && <span style={{ width:isMobile?36:52, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>±PTS</span>}
+            <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"right" }}>{scoreLabel}</span>
+          </div>
+          {rows.map((user, i) => {
+            const a = av(user.avatar);
+            const isMe = user.uid === currentUser?.uid;
+            const losses = user.total - user.correct;
+            const score = scoreFn(user);
+            const avgErr = user.avgSpreadError;
+            return (
+              <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?6:12,
+                padding:isMobile?"10px 12px":"12px 20px",
+                background: isMe ? "rgba(99,102,241,0.18)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                borderLeft: isMe ? "3px solid #6366f1" : "3px solid transparent" }}>
+                <MedalBadge i={i} size={isMobile?22:26} />
+                <div style={{ flex:1, display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                  <UserAvatar avatarId={user.avatar} correct={user.correct} size={isMobile?28:34} />
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"white",
+                      whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                      <span>{user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:4, fontWeight:700 }}>YOU</span>}</span>
+                      <RankBadge correct={user.correct} />
+                    </div>
+                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginTop:1 }}>{user.total} pick{user.total!==1?"s":""}</div>
+                  </div>
+                </div>
+                <div style={{ width:isMobile?32:44, textAlign:"center", fontSize:isMobile?12:14, fontWeight:800, color:"#4ade80" }}>{user.correct}</div>
+                <div style={{ width:isMobile?32:44, textAlign:"center", fontSize:isMobile?12:14, fontWeight:800, color:"#f87171" }}>{losses}</div>
+                {showSpread && <div style={{ width:isMobile?36:52, textAlign:"center" }}>
+                  {avgErr != null ? (
+                    <span style={{ fontSize:isMobile?11:12, fontWeight:800, color: avgErr<=4?"#4ade80":avgErr<=8?"#fbbf24":"#f87171" }}>±{avgErr}</span>
+                  ) : <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)" }}>—</span>}
+                </div>}
+                <div style={{ width:isMobile?44:60, textAlign:"right" }}>
+                  <span style={{ fontSize:isMobile?14:16, fontWeight:900, color:accentColor }}>{score}</span>
+                </div>
+              </div>
+            );
+          })}
+          {caption && <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", padding:"8px 20px", textAlign:"center" }}>{caption}</div>}
+        </div>
+      );
       const myVoteFor    = (gameId, date) => votes[`${date}_${gameId}`]?.[currentUser?.uid]?.teamAbbr ?? null;
       const mySpreadFor  = (gameId, date) => votes[`${date}_${gameId}`]?.[currentUser?.uid]?.spread ?? null;
 
@@ -4157,72 +4225,10 @@
               </div>
             );
 
-            // Sort for each leaderboard
+            // Sort for each leaderboard (smartScore + LBTable defined at StakesView scope)
             const mostWins = [...leaderboard].sort((a, b) => b.correct !== a.correct ? b.correct - a.correct : b.pct - a.pct);
-            // Smart Score = (wins²/total) × spread bonus — spread within 5pts adds up to 50% boost
-            const smartScore = u => {
-              const base = u.correct * u.correct / Math.max(u.total, 1);
-              const spreadBonus = u.spreadPct != null ? (1 + u.spreadPct / 200) : 1; // max 1.5× at 100%
-              return Math.round(base * spreadBonus * 10) / 10;
-            };
-            const smartLB = [...leaderboard].sort((a, b) => smartScore(b) !== smartScore(a) ? smartScore(b) - smartScore(a) : b.correct - a.correct);
+            const smartLB  = [...leaderboard].sort((a, b) => smartScore(b) !== smartScore(a) ? smartScore(b) - smartScore(a) : b.correct - a.correct);
 
-            const LBTable = ({ rows, scoreCol, scoreFn, scoreLabel, accentColor, headerGrad, caption, showSpread, icon }) => (
-              <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-                borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden", marginBottom:16 }}>
-                <div style={{ background:headerGrad, padding:"12px 20px", display:"flex", gap:isMobile?6:12, alignItems:"center" }}>
-                  <span style={{ fontSize:isMobile?12:14, fontWeight:900, color:"white", flex:1, display:"flex", alignItems:"center", gap:6 }}>{icon && <SI n={icon} size={isMobile?13:15} />}{scoreCol}</span>
-                  <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>W</span>
-                  <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>L</span>
-                  {showSpread && <span style={{ width:isMobile?36:52, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>±PTS</span>}
-                  <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"right" }}>{scoreLabel}</span>
-                </div>
-                {rows.map((user, i) => {
-                  const a = av(user.avatar);
-                  const isMe = user.uid === currentUser?.uid;
-                  const losses = user.total - user.correct;
-                  const score = scoreFn(user);
-                  return (
-                    <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?6:12,
-                      padding:isMobile?"10px 12px":"12px 20px",
-                      background: isMe ? "rgba(99,102,241,0.18)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                      borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                      borderLeft: isMe ? "3px solid #6366f1" : "3px solid transparent" }}>
-                      <MedalBadge i={i} size={isMobile?22:26} />
-                      <div style={{ flex:1, display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                        <UserAvatar avatarId={user.avatar} correct={user.correct} size={isMobile?28:34} />
-                        <div style={{ minWidth:0 }}>
-                          <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"white",
-                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
-                            <span>{user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:4, fontWeight:700 }}>YOU</span>}</span>
-                            <RankBadge correct={user.correct} />
-                          </div>
-                          <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""}</div>
-                        </div>
-                      </div>
-                      <div style={{ width:isMobile?32:44, textAlign:"center", fontSize:isMobile?12:13, fontWeight:800, color:"#4ade80" }}>{user.correct}</div>
-                      <div style={{ width:isMobile?32:44, textAlign:"center", fontSize:isMobile?12:13, fontWeight:800, color:"#f87171" }}>{losses}</div>
-                      {showSpread && (
-                        <div style={{ width:isMobile?36:52, textAlign:"center" }}>
-                          {user.avgSpreadError != null ? (
-                            <span style={{ fontSize:isMobile?10:12, fontWeight:800,
-                              color: user.avgSpreadError <= 4 ? "#4ade80" : user.avgSpreadError <= 8 ? "#fbbf24" : "#f87171" }}>
-                              ±{user.avgSpreadError}
-                            </span>
-                          ) : <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>—</span>}
-                        </div>
-                      )}
-                      <div style={{ width:isMobile?44:60, textAlign:"right" }}>
-                        <span style={{ fontSize:isMobile?13:15, fontWeight:900, color:accentColor }}>
-                          {score}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ padding:"8px 20px", fontSize:10, color:"rgba(255,255,255,0.3)", textAlign:"right" }}>{caption}</div>
-              </div>
-            );
 
             return (
               <div>
@@ -4284,58 +4290,32 @@
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>You and your friends haven't made any picks on finished games yet</div>
               </div>
             );
+            const friendsMostWins = [...friendsLB].sort((a,b) => b.correct !== a.correct ? b.correct - a.correct : b.pct - a.pct);
+            const friendsSmartLB = [...friendsLB].sort((a,b) => smartScore(b) !== smartScore(a) ? smartScore(b) - smartScore(a) : b.correct - a.correct);
             return (
               <div>
-                <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16, border:"1px solid rgba(124,58,237,0.35)",
-                  boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden" }}>
-                  {/* Header */}
-                  <div style={{ background:"linear-gradient(135deg,#4c1d95,#6d28d9)", padding:"14px 20px",
-                    display:"flex", gap:isMobile?8:14, alignItems:"center" }}>
-                    <span style={{ width:32, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>RANK</span>
-                    <span style={{ flex:1, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", letterSpacing:"0.08em" }}>PLAYER</span>
-                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>W</span>
-                    <span style={{ width:isMobile?36:50, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"center" }}>L</span>
-                    <span style={{ width:isMobile?44:60, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textAlign:"right" }}>%</span>
-                  </div>
-                  {friendsLB.map((user, i) => {
-                    const a = av(user.avatar);
-                    const isMe = user.uid === myUid;
-                    const losses = user.total - user.correct;
-                    return (
-                      <div key={user.uid} style={{ display:"flex", alignItems:"center", gap:isMobile?8:14,
-                        padding:isMobile?"10px 14px":"12px 20px",
-                        background: isMe ? "rgba(124,58,237,0.2)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
-                        borderBottom: i < friendsLB.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                        borderLeft: isMe ? "3px solid #7c3aed" : "3px solid transparent" }}>
-                        <MedalBadge i={i} size={isMobile?24:28} />
-                        <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-                          <UserAvatar avatarId={user.avatar} correct={user.correct} size={isMobile?30:36} />
-                          <div style={{ minWidth:0 }}>
-                            <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white",
-                              display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
-                              <span>{user.username}{isMe && <span style={{ fontSize:9, color:"#c4b5fd", marginLeft:5, fontWeight:700 }}>YOU</span>}</span>
-                              <RankBadge correct={user.correct} />
-                            </div>
-                            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""} total</div>
-                          </div>
-                        </div>
-                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
-                          fontWeight:800, color:"#4ade80" }}>{user.correct}</div>
-                        <div style={{ width:isMobile?36:50, textAlign:"center", fontSize:isMobile?13:14,
-                          fontWeight:800, color:"#f87171" }}>{losses}</div>
-                        <div style={{ width:isMobile?44:60, textAlign:"right" }}>
-                          <span style={{ fontSize:isMobile?14:16, fontWeight:900,
-                            color: user.pct >= 60 ? "#4ade80" : user.pct >= 50 ? "#fbbf24" : "#f87171" }}>
-                            {user.pct}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop:12, fontSize:11, color:"rgba(255,255,255,0.4)", textAlign:"center" }}>
-                  Friends-only · all-time rankings
-                </div>
+                <LBTable
+                  rows={friendsMostWins}
+                  scoreCol="Most Correct Picks"
+                  icon="Trophy"
+                  scoreFn={u => u.correct}
+                  scoreLabel="WINS"
+                  accentColor="#4ade80"
+                  headerGrad="linear-gradient(135deg,#064e3b,#065f46)"
+                  caption="Friends-only · ranked by total correct picks"
+                  showSpread={false}
+                />
+                <LBTable
+                  rows={friendsSmartLB}
+                  scoreCol="Smart Score"
+                  icon="Zap"
+                  scoreFn={u => smartScore(u)}
+                  scoreLabel="SCORE"
+                  accentColor="#fbbf24"
+                  headerGrad="linear-gradient(135deg,#78350f,#92400e)"
+                  caption="Friends-only · score = (wins²÷picks) × spread bonus · ±PTS = avg margin error"
+                  showSpread={true}
+                />
               </div>
             );
           })()}
@@ -4527,8 +4507,7 @@
                         <div style={{ width:52, height:52, borderRadius:"50%",
                           background:myRankObj.bg, display:"flex", alignItems:"center", justifyContent:"center",
                           boxShadow:`0 0 18px ${myRankObj.glow}`, border:`2px solid ${myRankObj.color}60`, flexShrink:0 }}>
-                          <span style={{ fontSize:22, fontWeight:900, color:myRankObj.textColor,
-                            textShadow:`0 0 10px ${myRankObj.glow}` }}>{myRankIdx+1}</span>
+                          <SI n={myRankObj.icon} size={26} color={myRankObj.textColor} style={{ filter:`drop-shadow(0 0 8px ${myRankObj.glow})` }} />
                         </div>
                         <div>
                           <div style={{ fontSize:22, fontWeight:900, color:myRankObj.textColor,
@@ -4583,8 +4562,7 @@
                                 boxShadow: reached ? `0 0 10px ${r.glow}` : "none",
                                 border: `1px solid ${reached ? r.color+"55" : "rgba(255,255,255,0.1)"}`,
                                 display:"flex", alignItems:"center", justifyContent:"center" }}>
-                                <span style={{ fontSize:13, fontWeight:900, color: reached ? r.textColor : "rgba(255,255,255,0.25)",
-                                  textShadow: reached ? `0 0 8px ${r.glow}` : "none" }}>{ri+1}</span>
+                                <SI n={r.icon} size={14} color={reached ? r.textColor : "rgba(255,255,255,0.2)"} />
                               </div>
                               {/* Label + range */}
                               <div style={{ flex:1, minWidth:0 }}>
@@ -4638,6 +4616,31 @@
       const [favPlayers,  setFavPlayers]  = useState(() => { try { return JSON.parse(localStorage.getItem("nba-fav-players")??"[]"); } catch { return []; } });
       const [currentUser,  setCurrentUser]  = useState(null);
       const [accountOpen,  setAccountOpen]  = useState(false);
+      const [authRestored, setAuthRestored] = useState(!FB_READY); // skip splash if no Firebase
+
+      // ── Restore auth session on page load ────────────────────────────────────
+      useEffect(() => {
+        if (!fbAuth || !fbDb) return;
+        // Ensure auth state persists across refreshes
+        fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+        const unsub = fbAuth.onAuthStateChanged(async firebaseUser => {
+          if (firebaseUser) {
+            try {
+              const doc = await fbDb.collection("users").doc(firebaseUser.uid).get();
+              if (doc.exists) {
+                const data = doc.data();
+                setCurrentUser({ uid: firebaseUser.uid, friends: [], ...data });
+                if (data.favTeams)   setFavTeams(data.favTeams);
+                if (data.favPlayers) setFavPlayers(data.favPlayers);
+              }
+            } catch(e) { console.warn("Auth restore error:", e); }
+          } else {
+            setCurrentUser(null);
+          }
+          setAuthRestored(true);
+        });
+        return () => unsub();
+      }, []);
 
       // ── Global votes state (lifted here so FriendsView can read leaderboard) ────
       const [votes,        setVotes]        = useState({});
