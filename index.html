@@ -5581,6 +5581,21 @@
         }
       }, []);
 
+      // When votes load, fetch only the specific game dates that appear in votes
+      // (avoids loading all 30 days blindly, which would exhaust the API rate limit)
+      useEffect(() => {
+        if (loadingVotes) return;           // wait until votes are ready
+        const needed = [...new Set(
+          Object.keys(votes).map(k => k.split("_")[0])   // key = "YYYY-MM-DD_gameId"
+        )].filter(d => gameCacheRef.current[d] === undefined);
+        if (needed.length === 0) return;
+        (async () => {
+          for (let i = 0; i < needed.length; i += 3) {
+            await Promise.all(needed.slice(i, i + 3).map(d => loadDate(d)));
+          }
+        })();
+      }, [loadingVotes, votes, loadDate]);
+
       const isHome     = view === "home";
       const isFavs     = view === "favorites";
       const isDontMiss = view === "dontmiss";
