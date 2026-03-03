@@ -2716,17 +2716,22 @@
           if (!qScores) return;
           const qs = qScores[String(recapGames[gameIdx]?.id)];
           const maxQ = qs?.home?.length ?? 4;
+          const isLastQ = quarterIdx === maxQ - 1;
           setShowBall(true);
           setShowQtrLabel(false);
           delay(1700, () => setShowBall(false));
-          delay(1850, () => setShowQtrLabel(true));
-          delay(5350, () => {          /* label appears at 1850ms + 3500ms pause */
-            setShowQtrLabel(false);
-            if (quarterIdx < maxQ - 1) setQuarterIdx(q => q + 1);
-            else setPhase("final");
-          });
+          if (isLastQ) {
+            // last quarter — skip "End of Q" label, go straight to winner screen
+            delay(2000, () => setPhase("final"));
+          } else {
+            delay(1850, () => setShowQtrLabel(true));
+            delay(4700, () => {          /* label appears at 1850ms + 2850ms pause */
+              setShowQtrLabel(false);
+              setQuarterIdx(q => q + 1);
+            });
+          }
         } else if (phase === "final") {
-          delay(1200, () => setPhase("scorers"));
+          delay(3000, () => setPhase("scorers")); // stay on winner screen 3s
         }
         return clearAll;
       }, [phase, quarterIdx, qScores]);
@@ -4170,23 +4175,7 @@
         })();
       }, []);
 
-      // Firestore real-time votes listener — query ALL votes (all-time)
-      useEffect(() => {
-        if (!fbDb) { setLoadingVotes(false); return; }
-        const q = fbDb.collection("votes");
-        const unsub = q.onSnapshot(snap => {
-          const v = {};
-          snap.docs.forEach(doc => {
-            const d = doc.data();
-            const key = `${d.date}_${d.gameId}`;
-            if (!v[key]) v[key] = {};
-            v[key][d.userId] = { teamAbbr: d.teamAbbr, username: d.username, avatar: d.avatar ?? AVATARS[0].id, spread: d.spread ?? null };
-          });
-          setVotes(v);
-          setLoadingVotes(false);
-        }, err => { console.error("Votes err:", err); setLoadingVotes(false); });
-        return () => unsub();
-      }, []);
+      // votes are managed by NBAGames and passed in as a prop — no local listener needed
 
       // Submit / change a vote (spread = predicted margin, 1-30)
       const submitVote = async (gameId, date, teamAbbr, spread = null) => {
