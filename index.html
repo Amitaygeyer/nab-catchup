@@ -531,6 +531,62 @@
       );
     }
 
+    // ── SolidIcon: wrapper around Lucide React icons ──────────────────────────
+    // ── Inline SVG icon library (no CDN dependency) ─────────────────────────────
+    const ICONS = {
+      Activity:      `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+      AlertTriangle: `<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+      ArrowUp:       `<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>`,
+      Award:         `<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>`,
+      BarChart2:     `<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>`,
+      Calendar:      `<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`,
+      CalendarClock: `<path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><circle cx="18" cy="18" r="4"/><path d="M18 16v2l1.5 1.5"/>`,
+      CheckCircle2:  `<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>`,
+      CircleDot:     `<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>`,
+      Clock:         `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+      Dices:         `<rect x="2" y="2" width="8" height="8" rx="1.5"/><rect x="14" y="2" width="8" height="8" rx="1.5"/><rect x="2" y="14" width="8" height="8" rx="1.5"/><rect x="14" y="14" width="8" height="8" rx="1.5"/><circle cx="6" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="6" cy="18" r="1" fill="currentColor" stroke="none"/><circle cx="18" cy="18" r="1" fill="currentColor" stroke="none"/>`,
+      Droplets:      `<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0114 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 01-11.91 4.97"/>`,
+      Eye:           `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`,
+      EyeOff:        `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`,
+      Flame:         `<path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/>`,
+      Handshake:     `<path d="M11 17a4 4 0 008 0V5H9l-1 3H5a2 2 0 00-2 2v4a2 2 0 002 2h2"/><path d="M14 10l-2.5 2.5L10 11l-3 3"/>`,
+      Home:          `<path d="m3 9 9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
+      Loader2:       `<path d="M21 12a9 9 0 11-6.219-8.56"/>`,
+      Lock:          `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>`,
+      Mail:          `<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7"/>`,
+      MailOpen:      `<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 01-2 2H4a2 2 0 01-2-2V10c0-.63.3-1.22.8-1.6l8-6a2 2 0 012.4 0l8 6z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 01-2.06 0L2 10"/>`,
+      Minus:         `<line x1="5" y1="12" x2="19" y2="12"/>`,
+      Moon:          `<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>`,
+      Newspaper:     `<path d="M4 3h16a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M16 3v4H8V3"/><line x1="2" y1="11" x2="22" y2="11"/><line x1="2" y1="16" x2="12" y2="16"/><line x1="17" y1="16" x2="22" y2="16"/>`,
+      Play:          `<polygon points="5 3 19 12 5 21 5 3"/>`,
+      Search:        `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>`,
+      Settings:      `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06-.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>`,
+      Shield:        `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+      Sliders:       `<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>`,
+      Smile:         `<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>`,
+      Snowflake:     `<line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4"/>`,
+      Star:          `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+      Target:        `<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>`,
+      Timer:         `<line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="12" y2="8"/><circle cx="12" cy="14" r="8"/>`,
+      TrendingUp:    `<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>`,
+      Trophy:        `<path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 22v-4"/><path d="M14 22v-4"/><path d="M6 4h12v8a6 6 0 01-12 0V4z"/>`,
+      User:          `<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
+      Users:         `<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>`,
+      XCircle:       `<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>`,
+      Zap:           `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>`,
+    };
+    const SI = ({ n, size=14, color="currentColor", style:st={} }) => {
+      const paths = ICONS[n];
+      if (!paths) return <span style={{ fontSize: Math.max(size * 0.7, 10), lineHeight:1, ...st }}>◆</span>;
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+          stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+          style={{ display:"inline-block", verticalAlign:"middle", flexShrink:0, ...st }}
+          dangerouslySetInnerHTML={{ __html: paths }}
+        />
+      );
+    };
+
     // ── TeamLogo ─────────────────────────────────────────────────────────────────
     function TeamLogo({ abbr, size = 52 }) {
       const safeAbbr = String(abbr ?? "");   // always a string, even if passed an object/number
@@ -602,7 +658,7 @@
             fontSize:11, fontWeight:700, letterSpacing:"0.04em",
             textDecoration:"none", textAlign:"center",
             transition:"all 0.15s", ...extraStyle }}>
-          {ready ? "🎬 Watch Highlights ↗" : "🔍 Finding highlights…"}
+          {ready ? <><SI n="Play" size={12} />{" Watch Highlights ↗"}</> : <><SI n="Loader2" size={12} />{" Finding highlights…"}</>}
         </a>
       );
     }
@@ -792,7 +848,7 @@
                         <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"rgba(255,255,255,0.55)", lineHeight:1 }}>TBD</div>
                       </div>
                     )}
-                    <div style={{ fontSize:isMobile?8:9, color:"rgba(255,255,255,0.38)", fontWeight:600, letterSpacing:"0.04em" }}>🏠 {game.home.abbreviation}</div>
+                    <div style={{ fontSize:isMobile?8:9, color:"rgba(255,255,255,0.38)", fontWeight:600, letterSpacing:"0.04em", display:"flex", alignItems:"center", gap:2 }}><SI n="Home" size={9} color="rgba(255,255,255,0.38)" />{game.home.abbreviation}</div>
                   </div>
                   {/* Home */}
                   <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:isMobile?5:7 }}>
@@ -866,7 +922,7 @@
                 <PlayerPhoto player={star.player} size={48} />
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ fontSize:9, fontWeight:700, color:"#fbbf24", textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:2 }}>
-                    🏆 Player of the Game · {winningTeam.abbreviation}
+                    <SI n="Trophy" size={10} color="#fbbf24" style={{marginRight:4}} />Player of the Game · {winningTeam.abbreviation}
                   </p>
                   <p style={{ fontSize:13, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     {star.player.first_name} {star.player.last_name}
@@ -935,12 +991,11 @@
             <div style={{ padding:"10px 12px", marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
               {isUpcoming ? (
                 <p style={{ fontSize:10, color:"#a5b4fc", textAlign:"center", padding:"4px 0", fontWeight:600 }}>
-                  📅 Upcoming — check back after tip-off
-                </p>
+                  <><SI n="CalendarClock" size={10} />{" Upcoming — check back after tip-off"}</></p>
               ) : (
                 <>
                   {spoilerMode ? (
-                    <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"5px 0" }}>🙈 Spoiler mode on</p>
+                    <p style={{ fontSize:10, color:"#bfdbfe", textAlign:"center", padding:"5px 0" }}><><SI n="EyeOff" size={10} />{" Spoiler mode on"}</></p>
                   ) : (
                     hasStats ? (
                       <button onClick={() => setModal(true)} style={{ width:"100%", padding:"9px 12px",
@@ -995,9 +1050,9 @@
         if (!games?.length || avg == null) return null;
         const avgPts = avg.pts ?? 0;
         const above = games.filter(g => (g.pts ?? 0) >= avgPts).length;
-        if (above >= 4) return { label:"🔥 On Fire", color:"#f59e0b", bg:"#fffbeb" };
-        if (above <= 1) return { label:"❄️ Cold Stretch", color:"#60a5fa", bg:"#eff6ff" };
-        return { label:"→ Steady", color:"#22c55e", bg:"#f0fdf4" };
+        if (above >= 4) return { label:<><SI n="Flame" size={11} />{" On Fire"}</>, color:"#f59e0b", bg:"rgba(245,158,11,0.12)" };
+        if (above <= 1) return { label:<><SI n="Snowflake" size={11} />{" Cold Stretch"}</>, color:"#60a5fa", bg:"rgba(96,165,250,0.12)" };
+        return { label:<><SI n="Minus" size={11} />{" Steady"}</>, color:"#22c55e", bg:"rgba(34,197,94,0.12)" };
       })();
 
       return (
@@ -1036,7 +1091,7 @@
             {/* Season Averages */}
             <div style={{ background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, border:"1px solid rgba(245,158,11,0.22)",
               boxShadow:"0 4px 20px rgba(0,0,0,0.4)", padding:"20px 24px" }}>
-              <h3 style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:16 }}>📊 Season Averages — {SEASON}-{(SEASON+1).toString().slice(2)}</h3>
+              <h3 style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:16 }}><><SI n="BarChart2" size={13} />{" Season Averages — "}</>{SEASON}-{(SEASON+1).toString().slice(2)}</h3>
               {avg === undefined ? <Spinner /> : avg === null ? (
                 <p style={{ color:"rgba(255,255,255,0.5)", fontSize:13 }}>No season data available</p>
               ) : (
@@ -1086,8 +1141,7 @@
               <div style={{ background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, border:"1px solid rgba(245,158,11,0.22)",
                 boxShadow:"0 4px 20px rgba(0,0,0,0.4)", padding:"20px 24px" }}>
                 <h3 style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:16 }}>
-                  📊 Team Record — With vs Without
-                </h3>
+                  <><SI n="BarChart2" size={13} />{" Team Record — With vs Without"}</></h3>
                 {impact === null ? (
                   <p style={{ color:"rgba(255,255,255,0.5)", fontSize:13 }}>No data available</p>
                 ) : (() => {
@@ -1102,8 +1156,8 @@
                         <div style={{ background:"rgba(74,222,128,0.12)", borderRadius:14, padding:"14px 16px",
                           border:"1px solid rgba(74,222,128,0.3)", textAlign:"center" }}>
                           <div style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#4ade80",
-                            letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:6 }}>
-                            ✅ With {player.last_name}
+                            letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                            <SI n="CheckCircle2" size={10} color="#4ade80" />{" With "}{player.last_name}
                           </div>
                           <div style={{ fontSize:isMobile?22:28, fontWeight:900, color:"#4ade80", lineHeight:1 }}>
                             {withW}–{withL}
@@ -1121,8 +1175,8 @@
                         <div style={{ background:"rgba(248,113,113,0.12)", borderRadius:14, padding:"14px 16px",
                           border:"1px solid rgba(248,113,113,0.3)", textAlign:"center" }}>
                           <div style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#f87171",
-                            letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:6 }}>
-                            ❌ Without
+                            letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                            <SI n="XCircle" size={10} color="#f87171" />{" Without"}
                           </div>
                           <div style={{ fontSize:isMobile?22:28, fontWeight:900, color:"#f87171", lineHeight:1 }}>
                             {woW}–{woL}
@@ -1140,7 +1194,7 @@
                       {diff != null && (woW + woL) > 0 && (
                         <div style={{ background: better?"rgba(245,158,11,0.12)":"rgba(255,255,255,0.06)", borderRadius:12, padding:"10px 16px",
                           border:`1px solid ${better?"rgba(245,158,11,0.35)":"rgba(255,255,255,0.12)"}`, display:"flex", alignItems:"center", gap:10 }}>
-                          <span style={{ fontSize:20 }}>{better?"🔥":"💧"}</span>
+                          {better ? <SI n="Flame" size={20} color="#f59e0b" /> : <SI n="Droplets" size={20} color="#60a5fa" />}
                           <div>
                             <span style={{ fontSize:isMobile?12:13, fontWeight:800,
                               color: better?"#fbbf24":"rgba(255,255,255,0.7)" }}>
@@ -1162,7 +1216,7 @@
             <div style={{ background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, border:"1px solid rgba(245,158,11,0.22)",
               boxShadow:"0 4px 20px rgba(0,0,0,0.4)", padding:"20px 24px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8 }}>
-                <h3 style={{ fontSize:14, fontWeight:800, color:"white" }}>📈 Momentum — Last 5 Games</h3>
+                <h3 style={{ fontSize:14, fontWeight:800, color:"white" }}><><SI n="TrendingUp" size={13} />{" Momentum — Last 5 Games"}</></h3>
                 {trend && (
                   <span style={{ fontSize:isMobile?10:11, fontWeight:700, padding:"4px 12px", borderRadius:20,
                     background:trend.bg, color:trend.color, border:`1px solid ${trend.color}30` }}>
@@ -1245,7 +1299,7 @@
             {/* Top 5 Season Performances */}
             <div style={{ background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, border:"1px solid rgba(245,158,11,0.22)",
               boxShadow:"0 4px 20px rgba(0,0,0,0.4)", padding:"20px 24px" }}>
-              <h3 style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:16 }}>🏅 Top 5 Performances This Season</h3>
+              <h3 style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:16 }}><><SI n="Award" size={13} />{" Top 5 Performances This Season"}</></h3>
               {top5 === undefined ? <Spinner /> : !top5?.length ? (
                 <p style={{ color:"rgba(255,255,255,0.5)", fontSize:13 }}>No game data available yet</p>
               ) : (
@@ -1261,17 +1315,23 @@
                     const ourScore = weAreHome ? g.game?.home_team_score : g.game?.visitor_team_score;
                     const theirScore = weAreHome ? g.game?.visitor_team_score : g.game?.home_team_score;
                     const won = ourScore != null && theirScore != null ? ourScore > theirScore : null;
-                    const rankColors = ["#f59e0b","#94a3b8","#cd7f32","#60a5fa","#60a5fa"];
+                    const medalStyles5 = [
+                      { bg:"linear-gradient(145deg,#ffe066,#f59e0b,#b45309)", shadow:"0 0 12px rgba(245,158,11,0.8),0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #fde68a", color:"#fff7e6" },
+                      { bg:"linear-gradient(145deg,#f0f0f0,#c8c8c8,#8a8a8a)", shadow:"0 0 10px rgba(200,200,200,0.6),0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #e5e5e5", color:"#f1f5f9" },
+                      { bg:"linear-gradient(145deg,#e8a96a,#cd7f32,#7c4a1c)", shadow:"0 0 10px rgba(205,127,50,0.7),0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #e8a96a", color:"#fef3c7" },
+                      { bg:"linear-gradient(135deg,#1e3a8a,#3b82f6)", shadow:"0 2px 6px rgba(0,0,0,0.4)", border:"1px solid rgba(96,165,250,0.5)", color:"#bfdbfe" },
+                      { bg:"linear-gradient(135deg,#1e3a8a,#3b82f6)", shadow:"0 2px 6px rgba(0,0,0,0.4)", border:"1px solid rgba(96,165,250,0.5)", color:"#bfdbfe" },
+                    ];
+                    const ms5 = medalStyles5[Math.min(i, 4)];
                     return (
                       <div key={i} style={{ display:"flex", alignItems:"center", gap:14,
                         background: i===0 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
                         borderRadius:14, padding:"12px 16px",
                         border: i===0 ? "1px solid rgba(245,158,11,0.4)" : "1px solid rgba(255,255,255,0.08)" }}>
-                        <div style={{ width:28, height:28, borderRadius:"50%", flexShrink:0,
-                          background:`linear-gradient(135deg,${rankColors[i]}30,${rankColors[i]}60)`,
-                          display:"flex", alignItems:"center", justifyContent:"center",
-                          fontSize:13, fontWeight:900, color:rankColors[i] }}>
-                          {i+1}
+                        <div style={{ width:32, height:32, borderRadius:"50%", flexShrink:0,
+                          background: ms5.bg, boxShadow: ms5.shadow, border: ms5.border,
+                          display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:14, fontWeight:900, color: ms5.color, textShadow:"0 1px 2px rgba(0,0,0,0.6)" }}>{i+1}</span>
                         </div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
@@ -1440,14 +1500,14 @@
         return list.slice(0, 8);
       }, [gameCache, standings]);
 
-      const SectionCard = ({ emoji, title, subtitle, gradient, children }) => (
+      const SectionCard = ({ emoji, iconName, title, subtitle, gradient, children }) => (
         <div style={{
           background:"rgba(8,12,28,0.80)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
           borderRadius:isMobile?14:20, border:"1px solid rgba(255,255,255,0.08)",
           boxShadow:"0 4px 24px rgba(0,0,0,0.4)", overflow:"hidden" }}>
           <div style={{ background:gradient, padding:isMobile?"11px 14px":"14px 22px",
             display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:isMobile?18:20 }}>{emoji}</span>
+            {iconName ? <SI n={iconName} size={isMobile?18:20} /> : <span style={{ fontSize:isMobile?18:20 }}>{emoji}</span>}
             <div>
               <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"white", letterSpacing:"0.03em" }}>{title}</div>
               {subtitle && <div style={{ fontSize:9, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:1 }}>{subtitle}</div>}
@@ -1472,26 +1532,39 @@
           <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:isMobile?12:20 }}>
 
             {/* ── Top Performers of the Night ── */}
-            <SectionCard emoji="🏆" title="Top Performers of the Night"
+            <SectionCard iconName="Trophy" title="Top Performers of the Night"
               subtitle={tdDate ? `${fmtDate(tdDate)} · ranked by PTS + AST + REB` : "Most recent game day"}
               gradient="linear-gradient(135deg,#78350f,#d97706)">
               {!topPerformers.length ? <Empty msg="No stats available for last game day" />
               : <div>{topPerformers.map((s, i) => {
                   const name = `${s.player?.first_name ?? ""} ${s.player?.last_name ?? ""}`.trim();
                   const total = (s.pts??0) + (s.ast??0) + (s.reb??0);
-                  const rankColors = ["#f59e0b","#9ca3af","#b45309"];
-                  const rankColor = i < 3 ? rankColors[i] : "#cbd5e1";
+                  const medals = [
+                    { bg:"linear-gradient(145deg,#ffe066,#f59e0b,#b45309)", shadow:"0 0 12px rgba(245,158,11,0.8), 0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #fde68a", color:"#fff7e6" },
+                    { bg:"linear-gradient(145deg,#f0f0f0,#c8c8c8,#8a8a8a)", shadow:"0 0 10px rgba(200,200,200,0.6), 0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #e5e5e5", color:"#f1f5f9" },
+                    { bg:"linear-gradient(145deg,#e8a96a,#cd7f32,#7c4a1c)", shadow:"0 0 10px rgba(205,127,50,0.7), 0 2px 6px rgba(0,0,0,0.5)", border:"1px solid #e8a96a", color:"#fef3c7" },
+                  ];
+                  const medal = i < 3 ? medals[i] : null;
                   return (
                     <div key={i} style={{ display:"flex", alignItems:"center", gap:isMobile?8:12,
                       padding:isMobile?"9px 12px":"11px 18px",
                       borderBottom: i < topPerformers.length-1 ? "1px solid #fef3c7" : "none",
-                      background: i%2===0 ? "rgba(255,255,255,0.05)" : "rgba(245,158,11,0.06)" }}>
+                      background: i===0 ? "rgba(245,158,11,0.10)" : i%2===0 ? "rgba(255,255,255,0.05)" : "rgba(245,158,11,0.04)" }}>
                       {/* Rank */}
-                      <div style={{ minWidth:isMobile?20:24, textAlign:"center", flexShrink:0 }}>
-                        <div style={{ fontSize:isMobile?12:14, fontWeight:900, color:rankColor,
-                          textShadow: i < 3 ? `0 0 8px ${rankColor}55` : "none" }}>
-                          #{i+1}
-                        </div>
+                      <div style={{ minWidth:isMobile?26:30, textAlign:"center", flexShrink:0 }}>
+                        {medal ? (
+                          <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center",
+                            width:isMobile?26:30, height:isMobile?26:30, borderRadius:"50%",
+                            background: medal.bg, boxShadow: medal.shadow,
+                            border: medal.border, position:"relative" }}>
+                            <span style={{ fontSize:isMobile?11:13, fontWeight:900, color: medal.color,
+                              textShadow:"0 1px 2px rgba(0,0,0,0.6)", letterSpacing:"-0.5px" }}>
+                              {i+1}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"#64748b" }}>#{i+1}</div>
+                        )}
                       </div>
                       <TeamLogo abbr={s.team?.abbreviation} size={isMobile?28:36} />
                       <div style={{ flex:1, minWidth:0 }}>
@@ -1521,7 +1594,7 @@
             </SectionCard>
 
             {/* ── Upsets ── */}
-            <SectionCard emoji="💥" title="Upsets"
+            <SectionCard iconName="Zap" title="Upsets"
               subtitle={`Underdog wins from the past ${DONT_MISS_DATES.length} days (8%+ win-rate gap)`}
               gradient="linear-gradient(135deg,#7f1d1d,#dc2626)">
               {!upsets.length ? <Empty msg={`No major upsets in the past ${DONT_MISS_DATES.length} days`} />
@@ -1572,7 +1645,7 @@
             </SectionCard>
 
             {/* ── Hot Streak ── */}
-            <SectionCard emoji="🔥" title="Hot Streak"
+            <SectionCard iconName="Flame" title="Hot Streak"
               subtitle={`Teams on a 3+ game winning run (last ${DONT_MISS_DATES.length} days)`}
               gradient="linear-gradient(135deg,#7c2d12,#ea580c)">
               {!hotStreaks.length ? <Empty msg={`No teams on a 3+ game win streak right now`} />
@@ -1601,7 +1674,7 @@
             </SectionCard>
 
             {/* ── Cold Streak ── */}
-            <SectionCard emoji="❄️" title="Cold Streak"
+            <SectionCard iconName="Snowflake" title="Cold Streak"
               subtitle={`Teams on a 3+ game losing run (last ${DONT_MISS_DATES.length} days)`}
               gradient="linear-gradient(135deg,#0c4a6e,#0284c7)">
               {!coldStreaks.length ? <Empty msg={`No teams on a 3+ game losing streak right now`} />
@@ -1730,8 +1803,8 @@
                   </div>
                 )}
                 <div>
-                  <div style={{ fontSize:16, fontWeight:900, color:"white" }}>
-                    {currentUser ? `Hey, ${currentUser.username}!` : "🏀 NBA CatchUp Account"}
+                  <div style={{ fontSize:16, fontWeight:900, color:"white", display:"flex", alignItems:"center", gap:5 }}>
+                    {currentUser ? `Hey, ${currentUser.username}!` : <><SI n="Activity" size={16} color="#fbbf24" />{" NBA CatchUp Account"}</>}
                   </div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:2 }}>
                     {currentUser ? "Your profile & settings" : "Save your favourites across devices"}
@@ -1747,7 +1820,7 @@
             {!FB_READY && (
               <div style={{ padding:"20px 24px" }}>
                 <div style={{ background:"rgba(245,158,11,0.12)", borderRadius:14, padding:"16px", border:"1px solid rgba(245,158,11,0.4)", marginBottom:16 }}>
-                  <div style={{ fontSize:13, fontWeight:800, color:"#fbbf24", marginBottom:8 }}>⚙️ One-time Setup Required</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:"#fbbf24", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}><SI n="Settings" size={13} /> One-time Setup Required</div>
                   <div style={{ fontSize:12, color:"rgba(255,255,255,0.75)", lineHeight:1.6 }}>
                     To enable accounts across devices, set up a free Firebase project:<br/>
                     <br/>
@@ -1832,7 +1905,7 @@
                       borderRadius:12, padding:"13px", fontWeight:800, fontSize:14, border:"none",
                       opacity:loading?0.7:1, cursor:loading?"wait":"pointer",
                       boxShadow:"0 4px 16px rgba(245,158,11,0.45)", transition:"opacity 0.15s" }}>
-                    {loading ? "⏳ Please wait…" : tab==="login" ? "Sign In" : "Create Account"}
+                    {loading ? <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><SI n="Loader2" size={14} /> Please wait…</span> : tab==="login" ? "Sign In" : "Create Account"}
                   </button>
                   {tab==="signup" && <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", textAlign:"center", lineHeight:1.5 }}>
                     Your current favourite teams & players will be saved to your new account.
@@ -1864,7 +1937,7 @@
                     padding:"12px", fontWeight:700, fontSize:13, border:"none",
                     opacity:loading?0.7:1, cursor:loading?"wait":"pointer", marginBottom:12,
                     boxShadow:"0 4px 14px rgba(59,130,246,0.35)" }}>
-                    {saved ? "✅ Saved!" : loading ? "Saving…" : "Save Avatar"}
+                    {saved ? <span style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><SI n="CheckCircle2" size={14} /> Saved!</span> : loading ? "Saving…" : "Save Avatar"}
                   </button>
                 )}
                 <div style={{ background:"rgba(255,255,255,0.07)", borderRadius:12, padding:"12px 14px", marginBottom:16,
@@ -1938,7 +2011,7 @@
         <div style={{ background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:14, border:"1px solid rgba(245,158,11,0.22)",
           boxShadow:"0 3px 16px rgba(0,0,0,0.35)", overflow:"hidden" }}>
           <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)", padding:"9px 12px" }}>
-            <span style={{ fontSize:11, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>🏆 Standings</span>
+            <span style={{ fontSize:11, fontWeight:800, color:"white", letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:5 }}><SI n="Trophy" size={12} /> Standings</span>
           </div>
           <div style={{ padding:"6px 2px 8px" }}>
             <Conf teams={east} title="Eastern" />
@@ -1953,7 +2026,7 @@
         <div style={{ margin:"16px 12px 24px", background:"rgba(8,12,28,0.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:14,
           border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 3px 16px rgba(0,0,0,0.35)", overflow:"hidden" }}>
           <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)", padding:"9px 14px" }}>
-            <span style={{ fontSize:12, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>🏆 Standings</span>
+            <span style={{ fontSize:12, fontWeight:800, color:"white", letterSpacing:"0.05em", display:"flex", alignItems:"center", gap:5 }}><SI n="Trophy" size={13} /> Standings</span>
           </div>
           <div style={{ display:"flex" }}>
             <div style={{ flex:1, borderRight:"1px solid #dbeafe", padding:"4px 0 6px" }}>
@@ -1968,6 +2041,86 @@
     }
 
     // ── Top Performers ───────────────────────────────────────────────────────────
+    // ── Player rank tier system ────────────────────────────────────────────────
+    const PLAYER_RANKS = [
+      { label:"Rookie",      min:0,   max:9,        color:"#94a3b8", textColor:"#e2e8f0", bg:"linear-gradient(135deg,#1e293b,#334155)",                               glow:"rgba(148,163,184,0.4)",  ringBg:"linear-gradient(135deg,#475569,#64748b,#334155)" },
+      { label:"Prospect",    min:10,  max:24,       color:"#6ee7b7", textColor:"#d1fae5", bg:"linear-gradient(135deg,#064e3b,#065f46)",                               glow:"rgba(110,231,183,0.45)", ringBg:"linear-gradient(135deg,#065f46,#6ee7b7,#064e3b)" },
+      { label:"Starter",     min:25,  max:49,       color:"#4ade80", textColor:"#dcfce7", bg:"linear-gradient(135deg,#14532d,#16a34a)",                               glow:"rgba(74,222,128,0.5)",   ringBg:"linear-gradient(135deg,#15803d,#4ade80,#14532d)" },
+      { label:"Veteran",     min:50,  max:99,       color:"#38bdf8", textColor:"#e0f2fe", bg:"linear-gradient(135deg,#0c4a6e,#0369a1)",                               glow:"rgba(56,189,248,0.5)",   ringBg:"linear-gradient(135deg,#0284c7,#38bdf8,#0c4a6e)" },
+      { label:"All-Star",    min:100, max:174,      color:"#60a5fa", textColor:"#dbeafe", bg:"linear-gradient(135deg,#1e3a8a,#2563eb)",                               glow:"rgba(96,165,250,0.55)",  ringBg:"linear-gradient(135deg,#1d4ed8,#60a5fa,#1e3a8a)" },
+      { label:"All-NBA",     min:175, max:274,      color:"#818cf8", textColor:"#e0e7ff", bg:"linear-gradient(135deg,#1e1b4b,#3730a3)",                               glow:"rgba(129,140,248,0.55)", ringBg:"linear-gradient(135deg,#3730a3,#818cf8,#1e1b4b)" },
+      { label:"MVP",         min:275, max:399,      color:"#c084fc", textColor:"#f3e8ff", bg:"linear-gradient(135deg,#581c87,#7e22ce)",                               glow:"rgba(192,132,252,0.6)",  ringBg:"linear-gradient(135deg,#7e22ce,#c084fc,#581c87)" },
+      { label:"Champion",    min:400, max:599,      color:"#f472b6", textColor:"#fce7f3", bg:"linear-gradient(135deg,#831843,#be185d)",                               glow:"rgba(244,114,182,0.6)",  ringBg:"linear-gradient(135deg,#be185d,#f472b6,#831843)" },
+      { label:"Hall of Fame",min:600, max:899,      color:"#fb923c", textColor:"#ffedd5", bg:"linear-gradient(135deg,#7c2d12,#c2410c)",                               glow:"rgba(251,146,60,0.65)",  ringBg:"linear-gradient(135deg,#ea580c,#fb923c,#7c2d12)" },
+      { label:"Legend",      min:900, max:Infinity, color:"#fbbf24", textColor:"#fff7e6", bg:"linear-gradient(135deg,#78350f,#d97706,#fbbf24,#d97706,#78350f)",       glow:"rgba(251,191,36,0.75)",  ringBg:"linear-gradient(135deg,#b45309,#fde68a,#f59e0b,#fde68a,#b45309)" },
+    ];
+    const getRank = correct => PLAYER_RANKS.find(r => (correct??0) >= r.min && (correct??0) <= r.max) ?? PLAYER_RANKS[0];
+
+    // Pill badge showing tier label
+    const RankBadge = ({ correct, size="sm" }) => {
+      const r = getRank(correct);
+      const isLg = size === "lg";
+      return (
+        <span style={{ display:"inline-flex", alignItems:"center", gap:3, flexShrink:0,
+          background:r.bg, borderRadius:20, border:`1px solid ${r.color}55`,
+          padding: isLg ? "4px 10px" : "2px 7px",
+          fontSize: isLg ? 12 : 9, fontWeight:900, color:r.textColor,
+          boxShadow:`0 0 ${isLg?10:6}px ${r.glow}`, letterSpacing:"0.04em" }}>
+          {r.label}
+        </span>
+      );
+    };
+
+    // Avatar circle with rank-coloured ring
+    const UserAvatar = ({ avatarId, correct=0, size=32, showRank=false }) => {
+      const a = AVATARS.find(x => x.id === (avatarId ?? "bball")) ?? AVATARS[0];
+      const r = getRank(correct);
+      const pad = Math.max(2, Math.round(size * 0.07));
+      return (
+        <div style={{ position:"relative", flexShrink:0, width:size, height:size }}>
+          <div style={{ width:size, height:size, borderRadius:"50%",
+            background:r.ringBg, padding:pad,
+            boxShadow:`0 0 ${Math.round(size*0.35)}px ${r.glow}` }}>
+            <div style={{ width:"100%", height:"100%", borderRadius:"50%",
+              background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:Math.round(size * 0.48) }}>
+              {a.emoji}
+            </div>
+          </div>
+          {showRank && (
+            <div style={{ position:"absolute", bottom:-4, left:"50%", transform:"translateX(-50%)",
+              background:r.bg, border:`1px solid ${r.color}55`, borderRadius:10,
+              padding:"1px 5px", fontSize:8, fontWeight:900, color:r.textColor,
+              whiteSpace:"nowrap", boxShadow:`0 2px 6px ${r.glow}` }}>
+              {r.label}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // Metallic podium badges (1st/2nd/3rd place)
+    const MEDAL_STYLES = [
+      { bg:"linear-gradient(145deg,#ffe066,#f59e0b,#b45309)", shadow:"0 0 14px rgba(245,158,11,0.85),0 2px 5px rgba(0,0,0,0.55)", border:"1px solid #fde68a", color:"#fff7e6" },
+      { bg:"linear-gradient(145deg,#f0f0f0,#c8c8c8,#8a8a8a)", shadow:"0 0 10px rgba(200,200,200,0.6),0 2px 5px rgba(0,0,0,0.55)",  border:"1px solid #e5e5e5", color:"#f1f5f9" },
+      { bg:"linear-gradient(145deg,#e8a96a,#cd7f32,#7c4a1c)", shadow:"0 0 10px rgba(205,127,50,0.7),0 2px 5px rgba(0,0,0,0.55)",   border:"1px solid #e8a96a", color:"#fef3c7" },
+    ];
+    const MedalBadge = ({ i, size=24 }) => {
+      if (i < 3) {
+        const m = MEDAL_STYLES[i];
+        return (
+          <div style={{ width:size, height:size, borderRadius:"50%", flexShrink:0,
+            background:m.bg, boxShadow:m.shadow, border:m.border,
+            display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <span style={{ fontSize:size*0.48, fontWeight:900, color:m.color,
+              textShadow:"0 1px 3px rgba(0,0,0,0.7)", lineHeight:1 }}>{i+1}</span>
+          </div>
+        );
+      }
+      return <div style={{ width:size, textAlign:"center", fontSize:size*0.42,
+        fontWeight:700, color:"#64748b", flexShrink:0 }}>#{i+1}</div>;
+    };
+
     function TopPerformers({ games, spoilerMode }) {
       const isMobile = useWindowWidth() < 600;
       // Flatten all players from all finished games that have stats
@@ -1998,8 +2151,7 @@
         )
         .slice(0, 5);
 
-      const medals = ["🥇", "🥈", "🥉", "4", "5"];
-      const rankStyle = i => ({ fontSize: i === 0 ? (isMobile?12:14) : (isMobile?11:12), opacity: 1 - i * 0.12 });
+      const rankStyle = i => ({ opacity: 1 - i * 0.1 });
 
       // Reusable avatar: player photo with tiny team logo badge
       const PlayerAvatar = ({ player, teamAbbr, photoSize = 32 }) => (
@@ -2015,10 +2167,10 @@
       );
 
       // Single-stat section (pts / ast / reb)
-      const Section = ({ title, color, icon, players, statKey }) => (
+      const Section = ({ title, color, icon, iconName, players, statKey }) => (
         <div style={{ flex:isMobile?1:"auto", minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
-            <span style={{ fontSize:isMobile?16:18 }}>{icon}</span>
+            {iconName ? <SI n={iconName} size={isMobile?16:18} color={color} /> : <span style={{ fontSize:isMobile?16:18 }}>{icon}</span>}
             <span style={{ fontSize:isMobile?10:11, fontWeight:800, color, letterSpacing:"0.06em", textTransform:"uppercase" }}>{title}</span>
           </div>
           {players.map((p, i) => {
@@ -2031,10 +2183,7 @@
                 padding: isFirst ? "8px 0 10px" : "5px 0",
                 borderBottom: i < players.length-1 ? "1px solid #f0f6ff" : "none",
                 ...rankStyle(i) }}>
-                <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
-                  color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
-                  {i < 3 ? medals[i] : `${i+1}.`}
-                </span>
+                <MedalBadge i={i} size={isMobile?18:20} />
                 {isFirst
                   ? <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={44} />
                   : <div style={{ width:44, flexShrink:0 }} />}
@@ -2060,7 +2209,7 @@
       const AllAroundSection = () => (
         <div style={{ flex:isMobile?"1":"0 0 auto", width:isMobile?"100%":280 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
-            <span style={{ fontSize:isMobile?16:18 }}>🌟</span>
+            <SI n="Star" size={isMobile?16:18} color="#b45309" />
             <span style={{ fontSize:isMobile?10:11, fontWeight:800, color:"#b45309",
               letterSpacing:"0.06em", textTransform:"uppercase" }}>All-Around</span>
             {!isMobile && <span style={{ fontSize:10, color:"#d97706", fontWeight:600, marginLeft:2 }}>PTS · AST · REB</span>}
@@ -2075,10 +2224,7 @@
                 padding: isFirst ? "8px 0 10px" : "5px 0",
                 borderBottom: i < allRounders.length-1 ? "1px solid #fef3c7" : "none",
                 ...rankStyle(i) }}>
-                <span style={{ width:18, textAlign:"center", fontSize: i < 3 ? 13 : 11,
-                  color: i < 3 ? "inherit" : "#94a3b8", fontWeight:700, flexShrink:0 }}>
-                  {i < 3 ? medals[i] : `${i+1}.`}
-                </span>
+                <MedalBadge i={i} size={isMobile?18:20} />
                 {isFirst
                   ? <PlayerAvatar player={p.player} teamAbbr={p.teamAbbr} photoSize={44} />
                   : <div style={{ width:44, flexShrink:0 }} />}
@@ -2112,21 +2258,21 @@
             padding:isMobile?"14px 16px":"18px 24px", marginBottom:0,
             boxShadow:"0 2px 12px rgba(0,0,0,0.35)" }}>
             <div style={{ fontSize:isMobile?10:11, fontWeight:800, color:"#fbbf24", letterSpacing:"0.08em",
-              textTransform:"uppercase", marginBottom:12 }}>
-              ⭐ Top Performers
+              textTransform:"uppercase", marginBottom:12, display:"flex", alignItems:"center", gap:5 }}>
+              <SI n="Star" size={11} color="#fbbf24" />{" Top Performers"}
             </div>
             <div style={{ display:"flex", gap:isMobile?12:28, flexWrap:"wrap" }}>
-              {!isMobile && <Section title="Points"   color="#fbbf24" icon="🏀" players={scorers}    statKey="pts" />}
+              {!isMobile && <Section title="Points"   color="#fbbf24" iconName="Activity" players={scorers}    statKey="pts" />}
               {!isMobile && <div style={{ width:1, background:"rgba(245,158,11,0.2)", flexShrink:0 }} />}
-              {!isMobile && <Section title="Assists"  color="#60a5fa" icon="🎯" players={assisters}  statKey="ast" />}
+              {!isMobile && <Section title="Assists"  color="#60a5fa" iconName="Target" players={assisters}  statKey="ast" />}
               {!isMobile && <div style={{ width:1, background:"rgba(245,158,11,0.2)", flexShrink:0 }} />}
-              {!isMobile && <Section title="Rebounds" color="#c4b5fd" icon="💪" players={rebounders} statKey="reb" />}
+              {!isMobile && <Section title="Rebounds" color="#c4b5fd" iconName="Zap" players={rebounders} statKey="reb" />}
               {!isMobile && <div style={{ width:1, background:"rgba(245,158,11,0.2)", flexShrink:0 }} />}
               {isMobile ? (
                 <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
-                  <Section title="Points"   color="#1d4ed8" icon="🏀" players={scorers}    statKey="pts" />
-                  <Section title="Assists"  color="#0891b2" icon="🎯" players={assisters}  statKey="ast" />
-                  <Section title="Rebounds" color="#7c3aed" icon="💪" players={rebounders} statKey="reb" />
+                  <Section title="Points"   color="#1d4ed8" iconName="Activity" players={scorers}    statKey="pts" />
+                  <Section title="Assists"  color="#0891b2" iconName="Target" players={assisters}  statKey="ast" />
+                  <Section title="Rebounds" color="#7c3aed" iconName="Zap" players={rebounders} statKey="reb" />
                   <AllAroundSection />
                 </div>
               ) : (
@@ -2215,7 +2361,7 @@
             {/* Header */}
             <div style={{ background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 60%,#4f46e5 100%)",
               padding:isMobile?"12px 16px":"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:isMobile?16:18 }}>🔮</span>
+              <SI n="Eye" size={isMobile?16:18} color="white" />
               <div>
                 <div style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white", letterSpacing:"0.02em" }}>Upcoming Key Matchups</div>
                 <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.55)", fontWeight:600, marginTop:1 }}>Next 3 days · Top clashes, rivalries & close races</div>
@@ -2339,7 +2485,7 @@
                 background:"rgba(8,12,28,0.78)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                 borderRadius:20, border:"1px solid rgba(245,158,11,0.2)", padding:"60px 24px", textAlign:"center",
                 boxShadow:"0 4px 24px rgba(0,0,0,0.35)" }}>
-                <p style={{ fontSize:44, marginBottom:12 }}>⚠️</p>
+                <div style={{ fontSize:44, marginBottom:12, color:"#f59e0b" }}><SI n="AlertTriangle" size={48} color="#f59e0b" /></div>
                 <p style={{ fontWeight:700, color:"white", marginBottom:6 }}>
                   {error==="auth"?"API key not authorised":"Couldn't reach the API"}
                 </p>
@@ -2350,7 +2496,7 @@
                 background:"rgba(8,12,28,0.78)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                 borderRadius:20, border:"1px solid rgba(245,158,11,0.2)", padding:"70px 24px", textAlign:"center",
                 boxShadow:"0 4px 24px rgba(0,0,0,0.35)" }}>
-                <p style={{ fontSize:48, marginBottom:12 }}>😴</p>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Moon" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <p style={{ fontWeight:700, color:"white" }}>No games on {fmtDate(selected)}</p>
               </div>
             ) : games.map((g, i) => <GameCard key={g.id} game={g} delay={i} spoilerMode={spoilerMode} date={selected} standings={standings} />)}
@@ -2409,7 +2555,7 @@
           {favPlayers.length > 0 && (
             <div style={{ marginBottom:isMobile?16:28 }}>
               <h2 style={{ fontSize:isMobile?14:16, fontWeight:800, color:"white",
-                marginBottom:isMobile?10:14, textShadow:"0 1px 6px rgba(0,0,0,0.5)" }}>⭐ Your Players</h2>
+                marginBottom:isMobile?10:14, textShadow:"0 1px 6px rgba(0,0,0,0.5)", display:"flex", alignItems:"center", gap:7 }}><SI n="Star" size={isMobile?13:15} color="#f59e0b" /> Your Players</h2>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(auto-fill, minmax(110px, 1fr))", gap:isMobile?8:12 }}>
                 {favPlayers.map(p => (
                   <div key={p.id} onClick={() => onSelectPlayer(p)}
@@ -2439,7 +2585,7 @@
           {favTeams.length > 0 && (
             <div style={{ marginBottom:isMobile?16:28 }}>
               <h2 style={{ fontSize:isMobile?14:16, fontWeight:800, color:"white",
-                marginBottom:isMobile?10:14, textShadow:"0 1px 6px rgba(0,0,0,0.5)" }}>⭐ Your Teams</h2>
+                marginBottom:isMobile?10:14, textShadow:"0 1px 6px rgba(0,0,0,0.5)", display:"flex", alignItems:"center", gap:7 }}><SI n="Star" size={isMobile?13:15} color="#f59e0b" /> Your Teams</h2>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(auto-fill, minmax(110px, 1fr))", gap:isMobile?8:12 }}>
                 {favTeams.map(t => (
                   <div key={t.abbreviation} onClick={() => onSelectTeam(t)}
@@ -2465,14 +2611,14 @@
 
           {/* Search tabs */}
           <div style={{ display:"flex", gap:isMobile?6:8, marginBottom:isMobile?12:18, flexWrap:"wrap" }}>
-            <TabBtn id="players" label={isMobile?"🏃":"🏃 Search Players"} />
-            <TabBtn id="teams"   label={isMobile?"🏟":"🏟 Search Teams"} />
+            <TabBtn id="players" label={<><SI n="User" size={12} />{isMobile?"":" Search Players"}</>} />
+            <TabBtn id="teams"   label={<><SI n="Shield" size={12} />{isMobile?"":" Search Teams"}</>} />
           </div>
 
           {/* Players search */}
           {tab === "players" && (
             <div>
-              <input type="text" placeholder="🔍  Search by player name…" value={playerQuery}
+              <input type="text" placeholder="Search by player name…" value={playerQuery}
                 onChange={e => setPlayerQuery(e.target.value)}
                 style={{ width:"100%", maxWidth:isMobile?"100%":"400px", padding:isMobile?"8px 12px":"10px 16px", borderRadius:12,
                   border:"1px solid rgba(245,158,11,0.3)",
@@ -2514,7 +2660,7 @@
           {/* Teams search */}
           {tab === "teams" && (
             <div>
-              <input type="text" placeholder="🔍  Search teams…" value={teamSearch}
+              <input type="text" placeholder="Search teams…" value={teamSearch}
                 onChange={e => setTeamSearch(e.target.value)}
                 style={{ width:"100%", maxWidth:isMobile?"100%":"400px", padding:isMobile?"8px 12px":"10px 16px", borderRadius:12,
                   border:"1px solid rgba(245,158,11,0.3)",
@@ -2679,7 +2825,7 @@
                 border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden" }}>
                 <div style={{ background:"linear-gradient(135deg,#1e1b4b,#1e3a8a)",
                   padding:isMobile?"10px 14px":"12px 20px", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:isMobile?13:15 }}>📅</span>
+                  <SI n="Calendar" size={isMobile?13:15} />
                   <span style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>Upcoming Schedule</span>
                   <span style={{ fontSize:isMobile?10:11, color:"rgba(255,255,255,0.5)", fontWeight:600, marginLeft:4 }}>
                     {upcomingGames5.length > 0 ? `Next ${upcomingGames5.length} game${upcomingGames5.length !== 1 ? "s" : ""}` : ""}
@@ -2781,7 +2927,7 @@
                   border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden" }}>
                   <div style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a)",
                     padding:isMobile?"10px 14px":"12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:isMobile?13:15 }}>📈</span>
+                    <SI n="TrendingUp" size={isMobile?13:15} />
                     <span style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white", letterSpacing:"0.05em" }}>Team Form</span>
                     <span style={{ fontSize:isMobile?10:11, color:"rgba(255,255,255,0.5)", fontWeight:600, marginLeft:4 }}>
                       Last {last5.length} games
@@ -2855,7 +3001,7 @@
             {loadingAll && !teamGames.length ? <Spinner full />
             : !teamGames.length ? (
               <div style={{ textAlign:"center", padding:"80px 24px" }}>
-                <p style={{ fontSize:48, marginBottom:12 }}>📅</p>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Calendar" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <p style={{ fontWeight:700, color:"white" }}>No games in the last 7 days</p>
               </div>
             ) : (
@@ -2882,7 +3028,7 @@
         return (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
             minHeight:"100vh", background:"rgba(8,12,28,0.85)", padding:32, textAlign:"center" }}>
-            <p style={{ fontSize:48, marginBottom:16 }}>⚠️</p>
+            <div style={{ marginBottom:16, color:"#f59e0b" }}><SI n="AlertTriangle" size={52} color="#f59e0b" /></div>
             <h2 style={{ fontSize:20, fontWeight:900, color:"white", marginBottom:8 }}>Something went wrong</h2>
             <p style={{ fontSize:13, color:"#60a5fa", marginBottom:24, maxWidth:400 }}>
               {this.state.err?.message ?? "Unexpected error"}
@@ -2955,7 +3101,7 @@
           background:"rgba(8,12,28,0.78)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
           borderRadius:20, border:"1px solid rgba(245,158,11,0.22)",
           boxShadow:"0 4px 24px rgba(0,0,0,0.35)" }}>
-          <div style={{ fontSize:56, marginBottom:16 }}>👥</div>
+          <div style={{ marginBottom:16, display:"flex", justifyContent:"center" }}><SI n="Users" size={56} color="rgba(255,255,255,0.4)" /></div>
           <div style={{ fontSize:20, fontWeight:900, color:"white", marginBottom:8 }}>Friends</div>
           <div style={{ color:"rgba(255,255,255,0.6)", fontSize:14 }}>Sign in to add friends and see their picks</div>
         </div>
@@ -2970,7 +3116,7 @@
             border:"1px solid rgba(245,158,11,0.22)",
             boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
             <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"white", marginBottom:4,
-              textShadow:"0 1px 8px rgba(245,158,11,0.3)" }}>👥 Friends</h2>
+              textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}><SI n="Users" size={isMobile?18:22} />{" Friends"}</h2>
             <p style={{ fontSize:isMobile?12:13, color:"rgba(255,255,255,0.6)", fontWeight:500 }}>
               Add friends to see their picks in Stakes and compare predictions
             </p>
@@ -2980,7 +3126,7 @@
           <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
             borderRadius:16, border:"1px solid rgba(245,158,11,0.18)",
             boxShadow:"0 2px 16px rgba(0,0,0,0.3)", padding:"16px 18px", marginBottom:16 }}>
-            <div style={{ fontWeight:800, color:"rgba(255,255,255,0.9)", fontSize:14, marginBottom:12 }}>🔍 Find by username</div>
+            <div style={{ fontWeight:800, color:"rgba(255,255,255,0.9)", fontSize:14, marginBottom:12, display:"flex", alignItems:"center", gap:5 }}><SI n="Search" size={13} />{" Find by username"}</div>
             <div style={{ display:"flex", gap:8 }}>
               <input value={search} onChange={e => setSearch(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && searchUser()}
@@ -3006,8 +3152,8 @@
               </div>
             )}
             {searchResult === "self" && (
-              <div style={{ marginTop:12, fontSize:13, color:"#f59e0b", fontWeight:600 }}>
-                That's you! 😄
+              <div style={{ marginTop:12, fontSize:13, color:"#f59e0b", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
+                <span>That's you!</span> <SI n="Smile" size={13} color="#f59e0b" />
               </div>
             )}
             {searchResult && typeof searchResult === "object" && (
@@ -3063,7 +3209,7 @@
             <div style={{ textAlign:"center", padding:"50px 24px",
               background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
               borderRadius:16, border:"1px solid rgba(245,158,11,0.18)" }}>
-              <div style={{ fontSize:44, marginBottom:12 }}>🤝</div>
+              <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Handshake" size={44} color="rgba(255,255,255,0.3)" /></div>
               <div style={{ fontWeight:800, color:"white", fontSize:15 }}>No friends yet</div>
               <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:6 }}>
                 Search for users by username above to add them
@@ -3091,15 +3237,12 @@
                   boxShadow:"0 2px 12px rgba(0,0,0,0.3)" }}>
                   {/* Top row: avatar + name + vote stats + remove */}
                   <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                    <div style={{ width:50, height:50, borderRadius:"50%", background:a.bg, flexShrink:0,
-                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:26,
-                      border:"2px solid rgba(255,255,255,0.25)",
-                      boxShadow:`0 0 0 3px ${a.bg}55` }}>
-                      {a.emoji}
-                    </div>
+                    <UserAvatar avatarId={p.avatar} correct={lbEntry?.correct ?? 0} size={50} />
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:900, color:"white", fontSize:isMobile?14:16, marginBottom:4 }}>
+                      <div style={{ fontWeight:900, color:"white", fontSize:isMobile?14:16, marginBottom:4,
+                        display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
                         {p.username}
+                        <RankBadge correct={lbEntry?.correct ?? 0} />
                       </div>
                       {/* Vote stats */}
                       {lbEntry ? (
@@ -3142,7 +3285,7 @@
                       {favPlayers.map((pl, idx) => (
                         <div key={idx} style={{ display:"flex", alignItems:"center", gap:4,
                           background:"rgba(255,255,255,0.07)", borderRadius:8, padding:"4px 8px" }}>
-                          <span style={{ fontSize:12 }}>🏀</span>
+                          <SI n="CircleDot" size={12} color="#f59e0b" />
                           <span style={{ fontSize:11, color:"rgba(255,255,255,0.7)", fontWeight:700 }}>
                             {pl.first_name} {pl.last_name}
                           </span>
@@ -3368,15 +3511,15 @@
               </span>
               <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", justifyContent:"flex-end" }}>
                 {countdown && <span style={{ fontSize:isMobile?9:10, fontWeight:700, color:"#fbbf24",
-                  background:"rgba(251,191,36,0.15)", borderRadius:20, padding:"2px 8px" }}>
-                  ⏱ {countdown}
+                  background:"rgba(251,191,36,0.15)", borderRadius:20, padding:"2px 8px", display:"flex", alignItems:"center", gap:3 }}>
+                  <><SI n="Timer" size={10} />{" "}{countdown}</>
                 </span>}
                 {gt && <span style={{ fontSize:isMobile?10:11, fontWeight:700, color:"white" }}>
                   {gt.time} {gt.ampm} {gt.tz}
                 </span>}
                 {!voteOpen && <span style={{ fontSize:9, fontWeight:800, color:"#f87171",
-                  background:"rgba(248,113,113,0.2)", borderRadius:20, padding:"2px 8px", border:"1px solid rgba(248,113,113,0.3)" }}>
-                  🔒 CLOSED
+                  background:"rgba(248,113,113,0.2)", borderRadius:20, padding:"2px 8px", border:"1px solid rgba(248,113,113,0.3)", display:"flex", alignItems:"center", gap:3 }}>
+                  <><SI n="Lock" size={9} />{" CLOSED"}</>
                 </span>}
               </div>
             </div>
@@ -3425,7 +3568,7 @@
                   <TeamLogo abbr={game.home.abbreviation} size={isMobile?44:58} />
                   <div style={{ fontSize:isMobile?13:15, fontWeight:900, color:"white" }}>{game.home.abbreviation}</div>
                   <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.55)", fontWeight:600, maxWidth:"90%",
-                    textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" }}>{game.home.city} 🏠</div>
+                    textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:2 }}>{game.home.city} <SI n="Home" size={10} color="rgba(255,255,255,0.55)" /></div>
                   {standings?.[game.home.abbreviation] && (
                     <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.45)", fontWeight:700 }}>
                       {standings[game.home.abbreviation].wins}–{standings[game.home.abbreviation].losses}
@@ -3446,7 +3589,7 @@
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
                   <span style={{ fontSize:isMobile?10:11, fontWeight:800, color:"rgba(255,255,255,0.75)",
                     display:"flex", alignItems:"center", gap:5 }}>
-                    <span>📏</span>
+                    <SI n="Sliders" size={12} color="rgba(255,255,255,0.75)" />
                     <span>Margin bet</span>
                   </span>
                   {myVote ? (
@@ -3520,7 +3663,7 @@
                     borderRight:"1px solid rgba(255,255,255,0.08)", cursor:"pointer",
                     fontSize:isMobile?10:11, fontWeight:700, color:"#a5b4fc",
                     display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                  <span>👥</span>
+                  <SI n="Users" size={12} />
                   <span>{totalVotes > 0 ? `All ${totalVotes} pick${totalVotes !== 1 ? "s" : ""}` : "No picks yet"}</span>
                   <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showPicks ? "▲" : "▼"}</span>
                 </button>
@@ -3529,7 +3672,7 @@
                     border:"none", cursor:"pointer",
                     fontSize:isMobile?10:11, fontWeight:700, color:"#c4b5fd",
                     display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                  <span>🤝</span>
+                  <SI n="Handshake" size={12} />
                   <span>Friends' picks{friendTotal > 0 ? ` (${friendTotal})` : ""}</span>
                   <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showFriendPicks ? "▲" : "▼"}</span>
                 </button>
@@ -3586,7 +3729,7 @@
                     </div>
                   ) : friendUids.length === 0 ? (
                     <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>
-                      Add friends in the <b>👥 Friends</b> tab to see their picks
+                      Add friends in the <b>Friends</b> tab to see their picks
                     </div>
                   ) : friendTotal === 0 ? (
                     <div style={{ textAlign:"center", fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>
@@ -3650,7 +3793,7 @@
               {!currentUser && voteOpen && (
                 <div style={{ padding:"6px 14px 10px", background:"rgba(245,158,11,0.12)", borderTop:"1px solid rgba(245,158,11,0.3)",
                   fontSize:11, fontWeight:600, color:"#fbbf24", textAlign:"center" }}>
-                  Sign in to place your pick 👆
+                  <span style={{display:"flex", alignItems:"center", gap:4, justifyContent:"center"}}>Sign in to place your pick <SI n="ArrowUp" size={10} color="#fbbf24" /></span>
                 </div>
               )}
             </div>
@@ -3700,7 +3843,7 @@
                 display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, flexShrink:0 }}>{a.emoji}</div>
               <span style={{ flex:1, fontSize:isMobile?9:10, fontWeight:700, color:"white",
                 overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{vote.username}</span>
-              {correct !== null && <span style={{ fontSize:10 }}>{correct ? "✅" : "❌"}</span>}
+              {correct !== null && <span style={{ fontSize:10 }}>{correct ? <SI n="CheckCircle2" size={12} color="#4ade80" /> : <SI n="XCircle" size={12} color="#f87171" />}</span>}
             </div>
           );
         };
@@ -3727,7 +3870,7 @@
               </span>
               <TeamLogo abbr={game.home.abbreviation} size={22} />
               {myResult && (
-                <span style={{ fontSize:13, marginLeft:4 }}>{myResult === "correct" ? "✅" : "❌"}</span>
+                <span style={{ fontSize:13, marginLeft:4 }}>{myResult === "correct" ? <SI n="CheckCircle2" size={14} color="#4ade80" /> : <SI n="XCircle" size={14} color="#f87171" />}</span>
               )}
             </div>
 
@@ -3761,7 +3904,7 @@
                   border:"none", borderRight:"1px solid rgba(255,255,255,0.08)", cursor:"pointer",
                   fontSize:isMobile?10:11, fontWeight:700, color:"#a5b4fc",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <span>👥</span>
+                <SI n="Users" size={12} />
                 <span>{total > 0 ? `All ${total} pick${total !== 1 ? "s" : ""}` : "No picks"}</span>
                 <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showAll ? "▲" : "▼"}</span>
               </button>
@@ -3770,7 +3913,7 @@
                   border:"none", cursor:"pointer",
                   fontSize:isMobile?10:11, fontWeight:700, color:"#c4b5fd",
                   display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <span>🤝</span>
+                <SI n="Handshake" size={12} />
                 <span>Friends{friendTotal > 0 ? ` (${friendTotal})` : ""}</span>
                 <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showFriends ? "▲" : "▼"}</span>
               </button>
@@ -3818,7 +3961,7 @@
                 {!currentUser ? (
                   <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>Sign in to see friends' picks</div>
                 ) : friendUids.length === 0 ? (
-                  <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>Add friends in the <b>👥 Friends</b> tab</div>
+                  <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>Add friends in the <b>Friends</b> tab</div>
                 ) : friendTotal === 0 ? (
                   <div style={{ textAlign:"center", fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>None of your friends picked this game</div>
                 ) : (
@@ -3909,8 +4052,7 @@
         games: (gameCache[d] ?? []).filter(g => g.status === "Final"),
       })).filter(g => g.games.length > 0);
 
-      const medalColor = i => i === 0 ? "#f59e0b" : i === 1 ? "#9ca3af" : i === 2 ? "#cd7c2f" : "#cbd5e1";
-      const medalEmoji = i => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`;
+      // MEDAL_STYLES + MedalBadge defined globally above
 
       return (
         <div style={{ maxWidth:900, margin:"0 auto", padding:isMobile?"14px 12px":"20px 24px" }}>
@@ -3921,7 +4063,7 @@
             border:"1px solid rgba(245,158,11,0.22)",
             boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
             <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"white", marginBottom:4,
-              textShadow:"0 1px 8px rgba(245,158,11,0.3)" }}>🎲 Stakes</h2>
+              textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}><SI n="Dices" size={isMobile?18:22} />{" Stakes"}</h2>
             <p style={{ fontSize:isMobile?12:13, color:"rgba(255,255,255,0.6)", fontWeight:500 }}>
               Pick the winners · Voting closes <b style={{ color:"#fbbf24" }}>1 hour before tip-off</b> · Compete with friends
             </p>
@@ -3930,18 +4072,22 @@
             <div style={{ display:"flex", gap:isMobile?4:6, marginTop:14, overflowX:"auto",
               WebkitOverflowScrolling:"touch" }} className="mobile-scroll">
               {[
-                { id:"vote",        label:"🎯 Vote",        sub:"Upcoming" },
-                { id:"results",     label:"📊 Results",     sub:"Last 3 days" },
-                { id:"leaderboard", label:"🏆 Leaderboard", sub:"Rankings" },
-                { id:"friends-lb",  label:"👥 Friends LB",  sub:"Friends only" },
-                { id:"my-stats",    label:"📈 My Stats",    sub:"Your history" },
+                { id:"vote",        icon:"Target",     label:"Vote",        sub:"Upcoming" },
+                { id:"results",     icon:"BarChart2",  label:"Results",     sub:"Last 3 days" },
+                { id:"leaderboard", icon:"Trophy",     label:"Leaderboard", sub:"Rankings" },
+                { id:"friends-lb",  icon:"Users",      label:"Friends LB",  sub:"Friends only" },
+                { id:"my-stats",    icon:"TrendingUp", label:"My Stats",    sub:"Your history" },
               ].map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:isMobile?"8px 12px":"9px 16px",
                   borderRadius:10, flexShrink:0, cursor:"pointer", transition:"all 0.15s", border:"none",
                   background: tab===t.id ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(255,255,255,0.10)",
                   boxShadow: tab===t.id ? "0 2px 10px rgba(245,158,11,0.4)" : "none" }}>
                   <div style={{ fontSize:isMobile?12:13, fontWeight:800,
-                    color: tab===t.id ? "white" : "rgba(255,255,255,0.65)", whiteSpace:"nowrap" }}>{t.label}</div>
+                    color: tab===t.id ? "white" : "rgba(255,255,255,0.65)", whiteSpace:"nowrap",
+                    display:"flex", alignItems:"center", gap:5 }}>
+                    <SI n={t.icon} size={12} color={tab===t.id ? "white" : "rgba(255,255,255,0.65)"} />
+                    <span>{t.label}</span>
+                  </div>
                   <div style={{ fontSize:9, fontWeight:600, marginTop:2,
                     color: tab===t.id ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.35)" }}>{t.sub}</div>
                 </button>
@@ -3956,7 +4102,7 @@
               {!isLoading && !nextVoteDay && (
                 <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                   border:"1px solid rgba(245,158,11,0.22)" }}>
-                  <div style={{ fontSize:48, marginBottom:12 }}>😴</div>
+                  <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Moon" size={48} color="rgba(255,255,255,0.3)" /></div>
                   <div style={{ fontWeight:700, color:"white" }}>No upcoming games in the next 3 days</div>
                   <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Check back closer to the next game day!</div>
                 </div>
@@ -3968,8 +4114,9 @@
                     <span style={{ fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20,
                       background: nextVoteDay.open ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
                       color: nextVoteDay.open ? "#4ade80" : "#f87171",
-                      border: `1px solid ${nextVoteDay.open ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}` }}>
-                      {nextVoteDay.open ? "🟢 Voting open" : "🔴 Voting closed"}
+                      border: `1px solid ${nextVoteDay.open ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
+                      display:"flex", alignItems:"center", gap:4 }}>
+                      {nextVoteDay.open ? <><span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#4ade80",marginRight:0}} />{" Voting open"}</> : <><span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#f87171",marginRight:0}} />{" Voting closed"}</>}
                     </span>
                   </div>
                   {nextVoteDay.games.map(g => <VoteCard key={g.id} game={g} date={nextVoteDay.date} />)}
@@ -3985,7 +4132,7 @@
               {!loadingVotes && resultsByDate.length === 0 && (
                 <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                   border:"1px solid rgba(245,158,11,0.22)" }}>
-                  <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
+                  <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="MailOpen" size={48} color="rgba(255,255,255,0.3)" /></div>
                   <div style={{ fontWeight:700, color:"white" }}>No results yet</div>
                   <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Results appear after games finish</div>
                 </div>
@@ -4004,7 +4151,7 @@
             if (leaderboard.length === 0) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>🏆</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Trophy" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>Leaderboard coming soon</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Make picks and finish games to see rankings!</div>
               </div>
@@ -4020,11 +4167,11 @@
             };
             const smartLB = [...leaderboard].sort((a, b) => smartScore(b) !== smartScore(a) ? smartScore(b) - smartScore(a) : b.correct - a.correct);
 
-            const LBTable = ({ rows, scoreCol, scoreFn, scoreLabel, accentColor, headerGrad, caption, showSpread }) => (
+            const LBTable = ({ rows, scoreCol, scoreFn, scoreLabel, accentColor, headerGrad, caption, showSpread, icon }) => (
               <div style={{ background:"rgba(8,12,28,0.75)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
                 borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", boxShadow:"0 4px 20px rgba(0,0,0,0.4)", overflow:"hidden", marginBottom:16 }}>
                 <div style={{ background:headerGrad, padding:"12px 20px", display:"flex", gap:isMobile?6:12, alignItems:"center" }}>
-                  <span style={{ fontSize:isMobile?12:14, fontWeight:900, color:"white", flex:1 }}>{scoreCol}</span>
+                  <span style={{ fontSize:isMobile?12:14, fontWeight:900, color:"white", flex:1, display:"flex", alignItems:"center", gap:6 }}>{icon && <SI n={icon} size={isMobile?13:15} />}{scoreCol}</span>
                   <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>W</span>
                   <span style={{ width:isMobile?32:44, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>L</span>
                   {showSpread && <span style={{ width:isMobile?36:52, fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.6)", textAlign:"center" }}>±PTS</span>}
@@ -4041,19 +4188,14 @@
                       background: isMe ? "rgba(99,102,241,0.18)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
                       borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
                       borderLeft: isMe ? "3px solid #6366f1" : "3px solid transparent" }}>
-                      <div style={{ width:24, textAlign:"center", fontSize:i < 3 ? 16 : 10, fontWeight:900, color:medalColor(i), flexShrink:0 }}>
-                        {medalEmoji(i)}
-                      </div>
+                      <MedalBadge i={i} size={isMobile?22:26} />
                       <div style={{ flex:1, display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                        <div style={{ width:isMobile?24:30, height:isMobile?24:30, borderRadius:"50%",
-                          background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
-                          fontSize:isMobile?12:14, flexShrink:0, boxShadow: isMe ? "0 0 0 2px #6366f1" : "none" }}>
-                          {a.emoji}
-                        </div>
+                        <UserAvatar avatarId={user.avatar} correct={user.correct} size={isMobile?28:34} />
                         <div style={{ minWidth:0 }}>
                           <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"white",
-                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                            {user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:4, fontWeight:700 }}>YOU</span>}
+                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                            <span>{user.username}{isMe && <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:4, fontWeight:700 }}>YOU</span>}</span>
+                            <RankBadge correct={user.correct} />
                           </div>
                           <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""}</div>
                         </div>
@@ -4086,7 +4228,8 @@
               <div>
                 <LBTable
                   rows={mostWins}
-                  scoreCol="🏆 Most Correct Picks"
+                  scoreCol="Most Correct Picks"
+                  icon="Trophy"
                   scoreFn={u => u.correct}
                   scoreLabel="WINS"
                   accentColor="#4ade80"
@@ -4096,7 +4239,8 @@
                 />
                 <LBTable
                   rows={smartLB}
-                  scoreCol="⚡ Smart Score"
+                  scoreCol="Smart Score"
+                  icon="Zap"
                   scoreFn={u => smartScore(u)}
                   scoreLabel="SCORE"
                   accentColor="#fbbf24"
@@ -4113,7 +4257,7 @@
             if (!currentUser) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>👥</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Users" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>Sign in to see your Friends Leaderboard</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Sign in and add friends to compete together</div>
               </div>
@@ -4122,10 +4266,10 @@
             if (friendUids.length === 0) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>👥</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Users" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>No friends yet</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>
-                  Head to the <b style={{ color:"#fbbf24" }}>👥 Friends</b> tab to add friends, then race them on the leaderboard!
+                  Head to the <b style={{ color:"#fbbf24" }}>Friends</b> tab to add friends, then race them on the leaderboard!
                 </div>
               </div>
             );
@@ -4135,7 +4279,7 @@
             if (friendsLB.length === 0) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>⏳</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Clock" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>No picks yet</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>You and your friends haven't made any picks on finished games yet</div>
               </div>
@@ -4163,21 +4307,14 @@
                         background: isMe ? "rgba(124,58,237,0.2)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
                         borderBottom: i < friendsLB.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
                         borderLeft: isMe ? "3px solid #7c3aed" : "3px solid transparent" }}>
-                        <div style={{ width:32, textAlign:"center", fontSize:i < 3 ? 18 : 12,
-                          fontWeight:900, color:medalColor(i), flexShrink:0 }}>
-                          {medalEmoji(i)}
-                        </div>
+                        <MedalBadge i={i} size={isMobile?24:28} />
                         <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-                          <div style={{ width:isMobile?28:34, height:isMobile?28:34, borderRadius:"50%",
-                            background:a.bg, display:"flex", alignItems:"center", justifyContent:"center",
-                            fontSize:isMobile?14:16, flexShrink:0,
-                            boxShadow: isMe ? "0 0 0 2px #7c3aed" : "none" }}>
-                            {a.emoji}
-                          </div>
+                          <UserAvatar avatarId={user.avatar} correct={user.correct} size={isMobile?30:36} />
                           <div style={{ minWidth:0 }}>
                             <div style={{ fontSize:isMobile?12:13, fontWeight:800, color:"white",
-                              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                              {user.username}{isMe && <span style={{ fontSize:9, color:"#c4b5fd", marginLeft:5, fontWeight:700 }}>YOU</span>}
+                              display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                              <span>{user.username}{isMe && <span style={{ fontSize:9, color:"#c4b5fd", marginLeft:5, fontWeight:700 }}>YOU</span>}</span>
+                              <RankBadge correct={user.correct} />
                             </div>
                             <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{user.total} pick{user.total !== 1 ? "s" : ""} total</div>
                           </div>
@@ -4208,7 +4345,7 @@
             if (!currentUser) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>📈</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="TrendingUp" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>Sign in to see your stats</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Make picks and track your performance</div>
               </div>
@@ -4217,7 +4354,7 @@
             if (!me || me.total === 0) return (
               <div style={{ textAlign:"center", padding:"60px 24px", background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:16,
                 border:"1px solid rgba(245,158,11,0.22)" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>🎯</div>
+                <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><SI n="Target" size={48} color="rgba(255,255,255,0.3)" /></div>
                 <div style={{ fontWeight:700, color:"white" }}>No picks yet</div>
                 <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginTop:6 }}>Vote on upcoming games to build your stats!</div>
               </div>
@@ -4250,15 +4387,14 @@
                 <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                   borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"16px 20px",
                   display:"flex", alignItems:"center", gap:14 }}>
-                  {(() => { const a = av(currentUser.avatar); return (
-                    <div style={{ width:56, height:56, borderRadius:"50%", background:a.bg, flexShrink:0,
-                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:28,
-                      border:"2px solid rgba(245,158,11,0.5)" }}>{a.emoji}</div>
-                  ); })()}
-                  <div>
-                    <div style={{ fontSize:18, fontWeight:900, color:"white" }}>{currentUser.username}</div>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:2 }}>
-                      Ranked <b style={{ color:"#fbbf24" }}>#{rank}</b> globally · {me.total} total picks
+                  <UserAvatar avatarId={currentUser.avatar} correct={me.correct} size={60} showRank={false} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:"white", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      {currentUser.username}
+                      <RankBadge correct={me.correct} size="lg" />
+                    </div>
+                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:4 }}>
+                      <b style={{ color:"#fbbf24" }}>#{rank}</b> globally · {me.correct} wins · {me.total} total picks
                     </div>
                   </div>
                 </div>
@@ -4266,8 +4402,8 @@
                 {/* Winning team picks — pie chart */}
                 <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                   borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"20px" }}>
-                  <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:16 }}>
-                    🎯 Winner Picks
+                  <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:16, display:"flex", alignItems:"center", gap:5 }}>
+                    <SI n="Target" size={13} />{" Winner Picks"}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:isMobile?16:28, flexWrap:"wrap" }}>
                     {/* Pie */}
@@ -4316,8 +4452,8 @@
                 {/* Points differential bets */}
                 <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
                   borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"20px" }}>
-                  <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:4 }}>
-                    📏 Margin Bet Accuracy
+                  <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:4, display:"flex", alignItems:"center", gap:5 }}>
+                    <SI n="Sliders" size={13} />{" Margin Bet Accuracy"}
                   </div>
                   {me.spreadTotal === 0 ? (
                     <div style={{ textAlign:"center", padding:"20px 0", color:"rgba(255,255,255,0.4)", fontSize:12 }}>
@@ -4368,6 +4504,121 @@
                     );
                   })()}
                 </div>
+                {/* ── Rank Progress & Timeline ── */}
+                {(() => {
+                  const myRankObj = getRank(me.correct);
+                  const myRankIdx = PLAYER_RANKS.indexOf(myRankObj);
+                  const next = PLAYER_RANKS[myRankIdx + 1];
+                  const progressToNext = next
+                    ? Math.min(100, Math.round(((me.correct - myRankObj.min) / (next.min - myRankObj.min)) * 100))
+                    : 100;
+                  return (
+                    <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+                      borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"20px" }}>
+                      <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:16, display:"flex", alignItems:"center", gap:6 }}>
+                        <SI n="TrendingUp" size={14} color="#f59e0b" />{" Your Rank"}
+                      </div>
+
+                      {/* Current rank big display */}
+                      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18,
+                        background:"rgba(255,255,255,0.04)", borderRadius:12, padding:"12px 16px",
+                        border:`1px solid ${myRankObj.color}40`,
+                        boxShadow:`0 0 20px ${myRankObj.glow}` }}>
+                        <div style={{ width:52, height:52, borderRadius:"50%",
+                          background:myRankObj.bg, display:"flex", alignItems:"center", justifyContent:"center",
+                          boxShadow:`0 0 18px ${myRankObj.glow}`, border:`2px solid ${myRankObj.color}60`, flexShrink:0 }}>
+                          <span style={{ fontSize:22, fontWeight:900, color:myRankObj.textColor,
+                            textShadow:`0 0 10px ${myRankObj.glow}` }}>{myRankIdx+1}</span>
+                        </div>
+                        <div>
+                          <div style={{ fontSize:22, fontWeight:900, color:myRankObj.textColor,
+                            textShadow:`0 0 12px ${myRankObj.glow}` }}>{myRankObj.label}</div>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginTop:2 }}>
+                            {me.correct} correct picks
+                          </div>
+                        </div>
+                        {next && (
+                          <div style={{ marginLeft:"auto", textAlign:"right" }}>
+                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Next rank</div>
+                            <div style={{ fontSize:12, fontWeight:800, color:next.textColor }}>{next.label}</div>
+                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>at {next.min} wins</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Progress bar to next rank */}
+                      {next && (
+                        <div style={{ marginBottom:18 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                            <span style={{ fontSize:11, fontWeight:700, color:myRankObj.color }}>{myRankObj.label}</span>
+                            <span style={{ fontSize:11, fontWeight:700, color:next.color }}>{next.label}</span>
+                          </div>
+                          <div style={{ height:10, borderRadius:8, background:"rgba(255,255,255,0.08)", overflow:"hidden", position:"relative" }}>
+                            <div style={{ height:"100%", width:`${progressToNext}%`, borderRadius:8, transition:"width 0.7s",
+                              background:myRankObj.ringBg, boxShadow:`0 0 8px ${myRankObj.glow}` }} />
+                          </div>
+                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:4, textAlign:"right" }}>
+                            {me.correct - myRankObj.min} / {next.min - myRankObj.min} wins · {next.min - me.correct} to go
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rank timeline */}
+                      <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.5)", letterSpacing:"0.06em",
+                        textTransform:"uppercase", marginBottom:10 }}>All Ranks</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {PLAYER_RANKS.map((r, ri) => {
+                          const reached = me.correct >= r.min;
+                          const isCurrent = r === myRankObj;
+                          const wins = ri + 1 < PLAYER_RANKS.length ? r.max + 1 - r.min : null;
+                          return (
+                            <div key={r.label} style={{ display:"flex", alignItems:"center", gap:10,
+                              padding:"8px 12px", borderRadius:10,
+                              background: isCurrent ? `${r.glow.replace("0.", "0.1")}` : reached ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.2)",
+                              border: isCurrent ? `1px solid ${r.color}55` : "1px solid rgba(255,255,255,0.06)",
+                              opacity: reached ? 1 : 0.45 }}>
+                              {/* Tier circle */}
+                              <div style={{ width:32, height:32, borderRadius:"50%", flexShrink:0,
+                                background: reached ? r.bg : "rgba(255,255,255,0.06)",
+                                boxShadow: reached ? `0 0 10px ${r.glow}` : "none",
+                                border: `1px solid ${reached ? r.color+"55" : "rgba(255,255,255,0.1)"}`,
+                                display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                <span style={{ fontSize:13, fontWeight:900, color: reached ? r.textColor : "rgba(255,255,255,0.25)",
+                                  textShadow: reached ? `0 0 8px ${r.glow}` : "none" }}>{ri+1}</span>
+                              </div>
+                              {/* Label + range */}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:12, fontWeight:900, color: reached ? r.textColor : "rgba(255,255,255,0.3)",
+                                  display:"flex", alignItems:"center", gap:6 }}>
+                                  {r.label}
+                                  {isCurrent && <span style={{ fontSize:9, background:r.bg, borderRadius:8, padding:"1px 6px",
+                                    color:r.textColor, fontWeight:700 }}>CURRENT</span>}
+                                </div>
+                                <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:1 }}>
+                                  {r.min === 0 ? "0" : r.min}–{r.max === Infinity ? "∞" : r.max} correct picks
+                                </div>
+                              </div>
+                              {/* Wins count */}
+                              <div style={{ textAlign:"right", flexShrink:0 }}>
+                                {reached ? (
+                                  <div style={{ fontSize:13, fontWeight:900, color:r.color }}>
+                                    {r === myRankObj
+                                      ? me.correct - r.min
+                                      : (r.max === Infinity ? me.correct - r.min : r.max - r.min + 1)}
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.25)" }}>locked</div>
+                                )}
+                                <div style={{ fontSize:8, color:"rgba(255,255,255,0.25)" }}>wins</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
               </div>
             );
           })()}
@@ -4527,24 +4778,33 @@
               display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <h1 style={{ fontSize:isMobile?17:22, fontWeight:900, color:"white", display:"flex", alignItems:"center", gap:8,
                 textShadow:"0 1px 8px rgba(245,158,11,0.4)" }}>
-                🏀<span style={{ letterSpacing:"-0.02em" }}>{isMobile?" NBA":"  NBA CatchUp"}</span>
+                <SI n="Activity" size={isMobile?20:24} color="#f59e0b" /><span style={{ letterSpacing:"-0.02em" }}>{isMobile?" NBA":"  NBA CatchUp"}</span>
               </h1>
               <div style={{ display:"flex", gap:isMobile?6:8, alignItems:"center" }}>
                 {/* Account button */}
-                <button onClick={() => setAccountOpen(true)} style={{ display:"flex", alignItems:"center",
-                  gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
-                  background: currentUser ? AVATARS.find(a=>a.id===currentUser.avatar)?.bg ?? "#1e3a8a"
-                                          : "rgba(255,255,255,0.12)",
-                  color: "white",
-                  border: currentUser ? "none" : "1px solid rgba(255,255,255,0.2)",
-                  fontSize:isMobile?11:12, fontWeight:700, flexShrink:0,
-                  boxShadow: currentUser ? "0 2px 10px rgba(0,0,0,0.3)" : "none",
-                  transition:"all 0.2s" }}>
-                  <span style={{ fontSize:isMobile?14:15 }}>
-                    {currentUser ? (AVATARS.find(a=>a.id===currentUser.avatar)?.emoji ?? "👤") : "👤"}
-                  </span>
-                  <span>{currentUser ? currentUser.username : "Sign In"}</span>
-                </button>
+                {(() => {
+                  const myLb = currentUser ? globalLeaderboard.find(u => u.uid === currentUser.uid) : null;
+                  const myRank = getRank(myLb?.correct ?? 0);
+                  return (
+                    <button onClick={() => setAccountOpen(true)} style={{ display:"flex", alignItems:"center",
+                      gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
+                      background: currentUser ? myRank.bg : "rgba(255,255,255,0.12)",
+                      color: "white",
+                      border: currentUser ? `1px solid ${myRank.color}55` : "1px solid rgba(255,255,255,0.2)",
+                      fontSize:isMobile?11:12, fontWeight:700, flexShrink:0,
+                      boxShadow: currentUser ? `0 2px 12px ${myRank.glow}` : "none",
+                      transition:"all 0.2s" }}>
+                      <span style={{ fontSize:isMobile?14:15 }}>
+                        {currentUser ? (AVATARS.find(a=>a.id===currentUser.avatar)?.emoji ?? <SI n="User" size={isMobile?14:15} />) : <SI n="User" size={isMobile?14:15} />}
+                      </span>
+                      <span style={{ color:currentUser?myRank.textColor:"white" }}>
+                        {currentUser ? currentUser.username : "Sign In"}
+                      </span>
+                      {currentUser && <span style={{ fontSize:8, fontWeight:900, color:myRank.textColor, opacity:0.85,
+                        background:"rgba(0,0,0,0.25)", borderRadius:8, padding:"1px 4px" }}>{myRank.label}</span>}
+                    </button>
+                  );
+                })()}
                 {/* Spoiler button */}
                 <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
                   gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
@@ -4554,7 +4814,7 @@
                   fontSize:isMobile?11:12, fontWeight:700, flexShrink:0,
                   boxShadow:spoilerMode?"0 2px 14px rgba(245,158,11,0.4)":"none",
                   transition:"all 0.2s" }}>
-                  <span style={{ fontSize:isMobile?14:15 }}>{spoilerMode?"🙈":"👁️"}</span>
+                  {spoilerMode ? <SI n="EyeOff" size={isMobile?14:15} /> : <SI n="Eye" size={isMobile?14:15} />}
                   <span>{spoilerMode?"Hidden":"Visible"}</span>
                 </button>
               </div>
@@ -4564,11 +4824,11 @@
               display:"flex", gap:isMobile?6:8, overflowX:"auto", WebkitOverflowScrolling:"touch" }}
               className="mobile-scroll">
               {[
-                { id:"home",      label:"🏀 Games" },
-                { id:"favorites", label:`⭐ Favourites${favTeams.length+favPlayers.length > 0 ? ` (${favTeams.length+favPlayers.length})` : ""}` },
-                { id:"dontmiss",  label:"📰 League News" },
-                { id:"stakes",    label:"🎲 Stakes" },
-                { id:"friends",   label:`👥 Friends${currentUser && (currentUser.friends??[]).length > 0 ? ` (${(currentUser.friends??[]).length})` : ""}` },
+                { id:"home",      icon:"Activity", label:"Games", badge: null },
+                { id:"favorites", icon:"Star",     label:"Favourites", badge: favTeams.length+favPlayers.length > 0 ? favTeams.length+favPlayers.length : null },
+                { id:"dontmiss",  icon:"Newspaper",label:"League News", badge: null },
+                { id:"stakes",    icon:"Dices",    label:"Stakes", badge: null },
+                { id:"friends",   icon:"Users",    label:"Friends", badge: currentUser && (currentUser.friends??[]).length > 0 ? (currentUser.friends??[]).length : null },
               ].map(tab => {
                 const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : isFavs||isTeam||isPlayer;
                 return (
@@ -4578,8 +4838,10 @@
                     color: active ? "white" : "rgba(255,255,255,0.72)",
                     border: active ? "none" : "1px solid rgba(255,255,255,0.14)",
                     boxShadow: active ? "0 2px 10px rgba(245,158,11,0.45)" : "none",
-                    transition:"all 0.15s", whiteSpace:"nowrap" }}>
-                    {tab.label}
+                    transition:"all 0.15s", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:5 }}>
+                    <SI n={tab.icon} size={13} color={active?"white":"rgba(255,255,255,0.72)"} />
+                    <span>{tab.label}</span>
+                    {tab.badge && <span style={{fontSize:10,background:"rgba(255,255,255,0.25)",borderRadius:10,padding:"0 5px",marginLeft:2}}>{tab.badge}</span>}
                   </button>
                 );
               })}
