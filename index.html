@@ -135,6 +135,19 @@
 </head>
 <body>
   <!-- ── Basketball Court Background ──────────────────────────────── -->
+  <!--
+    SVG viewBox 940×500 maps to NBA court 94ft×50ft at 10px/ft.
+    Court boundary: x=22 to x=918 (896px=89.6ft), y=22 to y=478 (456px).
+    Horizontal scale: 896/94 = 9.532 px/ft
+    Vertical scale:   456/50 = 9.12  px/ft
+    Left baseline: x=22   Right baseline: x=918   Mid-court: x=470   Court centre: y=250
+    Left basket centre:  (72, 250)  [5.25ft from baseline]
+    Right basket centre: (868, 250)
+    Key: 19ft deep × 16ft wide → 181px × 146px, y=177 to y=323
+    FT circle: r=56px (6ft), centred on FT line
+    3pt arc: r=226px (23.75ft), corners at y=49/451 (3ft from sideline)
+    Restricted area: r=38px (4ft)
+  -->
   <svg id="court-bg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 500"
        preserveAspectRatio="xMidYMid slice"
        style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none">
@@ -148,62 +161,109 @@
         <rect width="940" height="1"   y="18"   fill="rgba(255,255,255,0.04)"/>
       </pattern>
     </defs>
+
     <!-- Hardwood floor -->
     <rect width="940" height="500" fill="url(#planks)"/>
-    <!-- Stadium dark overlay — lets UI cards pop -->
+    <!-- Stadium dark overlay -->
     <rect width="940" height="500" fill="rgba(8,12,32,0.38)"/>
 
-    <!-- Court boundary -->
+    <!-- ── Court boundary ── -->
     <rect x="22" y="22" width="896" height="456" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
 
-    <!-- Half-court line -->
+    <!-- ── Half-court line ── -->
     <line x1="470" y1="22" x2="470" y2="478" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
 
-    <!-- Centre circle (outer) -->
-    <circle cx="470" cy="250" r="60" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- Centre circle (inner) -->
-    <circle cx="470" cy="250" r="18" fill="rgba(130,50,8,0.4)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- ── Centre circles ── -->
+    <!-- Outer jump circle: 6ft radius = 55px -->
+    <circle cx="470" cy="250" r="55" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- Inner tip-off circle: 2ft radius = 18px -->
+    <circle cx="470" cy="250" r="18" fill="rgba(130,50,8,0.35)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
 
-    <!-- ===== LEFT BASKET ===== -->
-    <!-- Key / paint -->
-    <rect x="22" y="170" width="150" height="160" fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- FT circle upper (filled) -->
-    <path d="M 112,250 A 60,60 0 0,1 232,250" fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- FT circle lower (dashed) -->
-    <path d="M 232,250 A 60,60 0 0,1 112,250" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5" stroke-dasharray="11,9"/>
-    <!-- 3-point corner top -->
-    <line x1="22" y1="52" x2="204" y2="52" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- 3-point arc -->
-    <path d="M 204,52 A 238,238 0 1,1 204,448" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- 3-point corner bottom -->
-    <line x1="204" y1="448" x2="22" y2="448" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- Backboard -->
-    <rect x="19" y="228" width="6" height="44" fill="rgba(255,255,255,0.7)" rx="1"/>
-    <!-- Rim -->
-    <circle cx="75" cy="250" r="14" fill="none" stroke="rgba(255,150,0,0.8)" stroke-width="2.5"/>
-    <!-- Restricted arc -->
-    <path d="M 75,213 A 37,37 0 0,1 75,287" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-dasharray="6,5"/>
+    <!-- ══════════════════════════════════════════════════════════
+         LEFT BASKET  (basket centre 72, 250)
+         Key: x=22 y=177  width=181  height=146
+         FT line: x=203  FT circle centre: (203, 250)
+         3pt corners: y=49 and y=451
+         3pt arc end points: (176, 49) and (176, 451)  r=226
+         ══════════════════════════════════════════════════════════ -->
 
-    <!-- ===== RIGHT BASKET ===== -->
-    <!-- Key / paint -->
-    <rect x="768" y="170" width="150" height="160" fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- FT circle upper (filled) -->
-    <path d="M 768,250 m 60,0 A 60,60 0 0,0 768,190" fill="none"/>
-    <path d="M 828,250 A 60,60 0 0,0 708,250" fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- FT circle lower (dashed) -->
-    <path d="M 708,250 A 60,60 0 0,0 828,250" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5" stroke-dasharray="11,9"/>
-    <!-- 3-point corner top -->
-    <line x1="918" y1="52" x2="736" y2="52" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- 3-point arc -->
-    <path d="M 736,52 A 238,238 0 1,0 736,448" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
-    <!-- 3-point corner bottom -->
-    <line x1="736" y1="448" x2="918" y2="448" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- Paint / key — 19ft deep × 16ft wide -->
+    <rect x="22" y="177" width="181" height="146"
+          fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
+    <!-- FT circle: solid half toward basket, dashed half away -->
+    <!-- Solid (toward basket, sweep CCW from top to bottom of FT line) -->
+    <path d="M 203,194 A 56,56 0 0,0 203,306"
+          fill="rgba(140,52,8,0.2)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- Dashed (away from basket) -->
+    <path d="M 203,306 A 56,56 0 0,0 203,194"
+          fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5" stroke-dasharray="11,9"/>
+
+    <!-- Lane hash marks — top side (y=177, marks stick upward) -->
+    <line x1="89"  y1="171" x2="89"  y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="98"  y1="171" x2="98"  y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="127" y1="171" x2="127" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="155" y1="171" x2="155" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- Lane hash marks — bottom side (y=323, marks stick downward) -->
+    <line x1="89"  y1="323" x2="89"  y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="98"  y1="323" x2="98"  y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="127" y1="323" x2="127" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="155" y1="323" x2="155" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
+    <!-- 3-point line: corners (3ft from sideline = 27px) + arc (23.75ft = 226px from basket) -->
+    <line x1="22"  y1="49" x2="176" y2="49"  stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <path d="M 176,49 A 226,226 0 0,1 176,451" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="176" y1="451" x2="22" y2="451"  stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
+    <!-- Backboard: 6ft wide (55px) centred at y=250, just inside boundary -->
+    <rect x="17" y="222" width="5" height="55" fill="rgba(255,255,255,0.75)" rx="1"/>
+    <!-- Rim: 9-inch radius ≈ 14px, orange -->
+    <circle cx="72" cy="250" r="14" fill="none" stroke="rgba(255,150,0,0.85)" stroke-width="2.5"/>
+    <!-- Restricted area arc: 4ft = 38px, solid -->
+    <path d="M 72,212 A 38,38 0 0,1 72,288"
+          fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
+
+    <!-- ══════════════════════════════════════════════════════════
+         RIGHT BASKET  (basket centre 868, 250)
+         Key: x=737 y=177  width=181  height=146
+         FT line: x=737  FT circle centre: (737, 250)
+         3pt arc end points: (764, 49) and (764, 451)  r=226
+         ══════════════════════════════════════════════════════════ -->
+
+    <!-- Paint / key -->
+    <rect x="737" y="177" width="181" height="146"
+          fill="rgba(140,52,8,0.28)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
+    <!-- FT circle solid (toward basket, sweep CW) -->
+    <path d="M 737,194 A 56,56 0 0,1 737,306"
+          fill="rgba(140,52,8,0.2)" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- FT circle dashed (away from basket) -->
+    <path d="M 737,306 A 56,56 0 0,1 737,194"
+          fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5" stroke-dasharray="11,9"/>
+
+    <!-- Lane hash marks — top side -->
+    <line x1="851" y1="171" x2="851" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="842" y1="171" x2="842" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="813" y1="171" x2="813" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="785" y1="171" x2="785" y2="177" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <!-- Lane hash marks — bottom side -->
+    <line x1="851" y1="323" x2="851" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="842" y1="323" x2="842" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="813" y1="323" x2="813" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="785" y1="323" x2="785" y2="329" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
+    <!-- 3-point line -->
+    <line x1="918"  y1="49" x2="764" y2="49"  stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <path d="M 764,49 A 226,226 0 0,0 764,451" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+    <line x1="764" y1="451" x2="918" y2="451"  stroke="rgba(255,255,255,0.52)" stroke-width="2.5"/>
+
     <!-- Backboard -->
-    <rect x="915" y="228" width="6" height="44" fill="rgba(255,255,255,0.7)" rx="1"/>
+    <rect x="918" y="222" width="5" height="55" fill="rgba(255,255,255,0.75)" rx="1"/>
     <!-- Rim -->
-    <circle cx="865" cy="250" r="14" fill="none" stroke="rgba(255,150,0,0.8)" stroke-width="2.5"/>
-    <!-- Restricted arc -->
-    <path d="M 865,213 A 37,37 0 0,0 865,287" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" stroke-dasharray="6,5"/>
+    <circle cx="868" cy="250" r="14" fill="none" stroke="rgba(255,150,0,0.85)" stroke-width="2.5"/>
+    <!-- Restricted area arc -->
+    <path d="M 868,212 A 38,38 0 0,0 868,288"
+          fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
   </svg>
 
   <div id="root"></div>
@@ -2654,6 +2714,23 @@
         g.status === "Final" &&
         (showAll || allFavAbbrs.has(g.home.abbreviation) || allFavAbbrs.has(g.visitor.abbreviation))
       );
+      // Top performers across all recap games — shown at end of All NBA Recap only
+      const recapTopPerformers = React.useMemo(() => {
+        if (!showAll) return [];
+        const all = [];
+        recapGames.forEach(g => {
+          [g.home, g.visitor].forEach(side => {
+            (side.players ?? []).forEach(p => {
+              const mins = parseFloat(p.min) || 0;
+              if (mins <= 0) return;
+              const pl = p.player ?? { first_name: p.first_name, last_name: p.last_name, id: p.id };
+              all.push({ player: pl, team: { abbreviation: side.abbreviation }, pts: p.pts??0, reb: p.reb??0, ast: p.ast??0 });
+            });
+          });
+        });
+        return all.sort((a,b) => ((b.pts+b.reb+b.ast)-(a.pts+a.reb+a.ast))).slice(0, 10);
+      }, [recapGames, showAll]);
+
       const [gameIdx, setGameIdx] = useState(0);
       const [phase, setPhase] = useState("loading");
       const [quarterIdx, setQuarterIdx] = useState(0);
@@ -2732,7 +2809,7 @@
         clearAll();
         setGameIdx(i => i + 1);
         setQuarterIdx(0);
-        setPhase("intro");
+        setPhase("teams"); // skip intro splash — only shown before the first game
       };
       const skipToScorers = () => { clearAll(); setPhase("scorers"); };
       const isFavTeamAbbr = abbr => favTeamAbbrs.has(abbr);
@@ -3136,11 +3213,88 @@
                   )}
                 </div>
               )}
+              {/* ── TOP PERFORMERS PHASE ── */}
+              {phase === "topperformers" && recapTopPerformers.length > 0 && (
+                <div style={{animation:"recapSlideUp 0.45s ease both"}}>
+                  <div style={{textAlign:"center",padding:isMobile?"18px 16px 14px":"24px 24px 16px"}}>
+                    <div style={{fontSize:32,marginBottom:6}}>🏆</div>
+                    <div style={{fontSize:isMobile?18:22,fontWeight:900,color:"#fbbf24",letterSpacing:"0.04em",
+                      textShadow:"0 0 20px rgba(245,158,11,0.5)"}}>Top Performers of the Night</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:4}}>Ranked by PTS + REB + AST</div>
+                  </div>
+                  <div style={{margin:"0 4px 8px",borderRadius:14,overflow:"hidden",
+                    border:"1px solid rgba(245,158,11,0.3)",
+                    background:"linear-gradient(160deg,rgba(120,53,15,0.4),rgba(12,16,38,0.95))"}}>
+                    {recapTopPerformers.map((s,i)=>{
+                      const name=`${s.player?.first_name?.[0]??""}. ${s.player?.last_name??""}`.trim();
+                      const total=s.pts+s.reb+s.ast;
+                      const medals=[
+                        {bg:"linear-gradient(145deg,#ffe066,#f59e0b,#b45309)",shadow:"0 0 12px rgba(245,158,11,0.8)",border:"1px solid #fde68a",color:"#fff7e6"},
+                        {bg:"linear-gradient(145deg,#f0f0f0,#c8c8c8,#8a8a8a)",shadow:"0 0 10px rgba(200,200,200,0.6)",border:"1px solid #e5e5e5",color:"#f1f5f9"},
+                        {bg:"linear-gradient(145deg,#e8a96a,#cd7f32,#7c4a1c)",shadow:"0 0 10px rgba(205,127,50,0.7)",border:"1px solid #e8a96a",color:"#fef3c7"},
+                      ];
+                      const medal=i<3?medals[i]:null;
+                      return(
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:isMobile?10:14,
+                          padding:isMobile?"10px 14px":"13px 20px",
+                          borderBottom:i<recapTopPerformers.length-1?"1px solid rgba(245,158,11,0.1)":"none",
+                          background:i===0?"rgba(245,158,11,0.12)":i%2===0?"rgba(255,255,255,0.04)":"rgba(245,158,11,0.03)",
+                          animation:`recapSlideUp 0.35s ease ${i*55}ms both`}}>
+                          <div style={{minWidth:isMobile?28:34,textAlign:"center",flexShrink:0}}>
+                            {medal?(
+                              <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+                                width:isMobile?28:34,height:isMobile?28:34,borderRadius:"50%",
+                                background:medal.bg,boxShadow:medal.shadow,border:medal.border}}>
+                                <span style={{fontSize:isMobile?12:14,fontWeight:900,color:medal.color,
+                                  textShadow:"0 1px 2px rgba(0,0,0,0.6)"}}>{i+1}</span>
+                              </div>
+                            ):(
+                              <div style={{fontSize:isMobile?11:13,fontWeight:800,color:"#64748b"}}>#{i+1}</div>
+                            )}
+                          </div>
+                          <TeamLogo abbr={s.team?.abbreviation} size={isMobile?28:36}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:isMobile?13:15,fontWeight:800,color:"white",
+                              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name||"—"}</div>
+                            <div style={{fontSize:9,fontWeight:700,color:"#fbbf24",letterSpacing:"0.05em"}}>{s.team?.abbreviation}</div>
+                          </div>
+                          {[["PTS",s.pts],["REB",s.reb],["AST",s.ast]].map(([lbl,val])=>(
+                            <div key={lbl} style={{textAlign:"center",minWidth:isMobile?30:36}}>
+                              <div style={{fontSize:isMobile?16:20,fontWeight:900,color:"#f59e0b",lineHeight:1}}>{val}</div>
+                              <div style={{fontSize:7,fontWeight:700,color:"rgba(255,255,255,0.45)",letterSpacing:"0.06em"}}>{lbl}</div>
+                            </div>
+                          ))}
+                          <div style={{textAlign:"center",minWidth:isMobile?36:44,flexShrink:0,
+                            background:"rgba(245,158,11,0.22)",borderRadius:10,padding:"4px 6px",
+                            border:"1px solid rgba(245,158,11,0.45)"}}>
+                            <div style={{fontSize:isMobile?15:19,fontWeight:900,color:"#fbbf24",lineHeight:1}}>{total}</div>
+                            <div style={{fontSize:7,fontWeight:700,color:"rgba(251,191,36,0.7)",letterSpacing:"0.04em"}}>TOT</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"12px 14px":"14px 24px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-              <button onClick={() => { if (gameIdx > 0) { clearAll(); setGameIdx(i=>i-1); setQuarterIdx(0); setPhase("intro"); } }} disabled={gameIdx===0} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 16px",color:gameIdx===0?"rgba(255,255,255,0.18)":"rgba(255,255,255,0.8)",fontWeight:700,fontSize:12,cursor:gameIdx===0?"not-allowed":"pointer"}}>← Prev</button>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.28)"}}>{recapGames.length>0?`${gameIdx+1} / ${recapGames.length}`:""}</div>
-              {phase === "scorers" ? (gameIdx < recapGames.length - 1 ? (<button onClick={goNextGame} style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(245,158,11,0.45)",transition:"all 0.15s"}}>Next Game →</button>) : (<button onClick={onClose} style={{background:"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(34,197,94,0.4)"}}>Done ✓</button>)) : (<button onClick={skipToScorers} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 16px",color:"rgba(255,255,255,0.55)",fontWeight:700,fontSize:12}}>Skip →</button>)}
+              {phase === "topperformers"
+                ? <div />
+                : <button onClick={() => { if (gameIdx > 0) { clearAll(); setGameIdx(i=>i-1); setQuarterIdx(0); setPhase("teams"); } }} disabled={gameIdx===0} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 16px",color:gameIdx===0?"rgba(255,255,255,0.18)":"rgba(255,255,255,0.8)",fontWeight:700,fontSize:12,cursor:gameIdx===0?"not-allowed":"pointer"}}>← Prev</button>}
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.28)"}}>
+                {phase === "topperformers" ? "🏆 Night's Best" : recapGames.length>0?`${gameIdx+1} / ${recapGames.length}`:""}
+              </div>
+              {phase === "topperformers" ? (
+                <button onClick={onClose} style={{background:"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(34,197,94,0.4)"}}>Done ✓</button>
+              ) : phase === "scorers" ? (
+                gameIdx < recapGames.length - 1
+                  ? <button onClick={goNextGame} style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(245,158,11,0.45)",transition:"all 0.15s"}}>Next Game →</button>
+                  : showAll && recapTopPerformers.length > 0
+                    ? <button onClick={() => { clearAll(); setPhase("topperformers"); }} style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(245,158,11,0.45)"}}>Top Performers 🏆</button>
+                    : <button onClick={onClose} style={{background:"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",borderRadius:10,padding:"8px 22px",color:"white",fontWeight:800,fontSize:13,boxShadow:"0 2px 14px rgba(34,197,94,0.4)"}}>Done ✓</button>
+              ) : (
+                <button onClick={skipToScorers} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"7px 16px",color:"rgba(255,255,255,0.55)",fontWeight:700,fontSize:12}}>Skip →</button>
+              )}
             </div>
           </div>
         </div>
@@ -5813,13 +5967,12 @@
               display:"flex", gap:isMobile?6:8, overflowX:"auto", WebkitOverflowScrolling:"touch" }}
               className="mobile-scroll">
               {[
-                { id:"home",      icon:"Activity", label:"Games", badge: null },
+                { id:"home",      icon:"Activity", label:"Games",      badge: null },
+                { id:"stakes",    icon:"Dices",    label:"Stakes",     badge: null },
                 { id:"favorites", icon:"Star",     label:"Favourites", badge: favTeams.length+favPlayers.length > 0 ? favTeams.length+favPlayers.length : null },
-                { id:"dontmiss",  icon:"Newspaper",label:"League News", badge: null },
-                { id:"stakes",    icon:"Dices",    label:"Stakes", badge: null },
-                { id:"friends",   icon:"Users",    label:"Friends", badge: currentUser && (currentUser.friends??[]).length > 0 ? (currentUser.friends??[]).length : null },
+                { id:"friends",   icon:"Users",    label:"Friends",    badge: currentUser && (currentUser.friends??[]).length > 0 ? (currentUser.friends??[]).length : null },
               ].map(tab => {
-                const active = tab.id==="home" ? isHome : tab.id==="dontmiss" ? isDontMiss : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : isFavs||isTeam||isPlayer;
+                const active = tab.id==="home" ? isHome : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : isFavs||isTeam||isPlayer;
                 return (
                   <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"7px 13px":"7px 18px",
                     borderRadius:20, fontSize:isMobile?12:13, fontWeight:700, flexShrink:0,
@@ -5847,8 +6000,6 @@
                 favPlayers={favPlayers} setFavPlayers={setFavPlayers}
                 onSelectTeam={t => setView({type:"team",team:t})}
                 onSelectPlayer={p => setView({type:"player",player:p})} />}
-              {isDontMiss && <DontMissView gameCache={gameCache} loadDate={loadDate}
-                standings={standings} spoilerMode={spoilerMode} />}
               {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
                 currentUser={currentUser} standings={standings}
                 votes={votes} loadingVotes={loadingVotes} leaderboard={globalLeaderboard} />}
