@@ -131,6 +131,42 @@
       60%  { transform:scale(1.18) translateY(-4px); }
       100% { opacity:1; transform:scale(1) translateY(0); }
     }
+    /* ── Landing page animations ─────────────────────────────────────────── */
+    @keyframes landPageEnter { from{opacity:0} to{opacity:1} }
+    @keyframes landPageExit  { from{opacity:1;transform:scale(1)} to{opacity:0;transform:scale(1.05)} }
+    @keyframes landTitleIn   { from{opacity:0;transform:translateY(-28px) scale(0.92)} to{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes landCardIn    { from{opacity:0;transform:translateY(36px) scale(0.92)} to{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes landShine     { 0%{background-position:-400% center} 100%{background-position:400% center} }
+    @keyframes landBounce    {
+      0%   { transform:translateX(-50%) translateY(0)     scaleX(1)    scaleY(1);    animation-timing-function:cubic-bezier(0.215,0.61,0.355,1); }
+      45%  { transform:translateX(-50%) translateY(-76px) scaleX(1)    scaleY(1);    animation-timing-function:cubic-bezier(0.755,0.05,0.855,0.06); }
+      50%  { transform:translateX(-50%) translateY(-80px) scaleX(1.06) scaleY(0.94); }
+      55%  { transform:translateX(-50%) translateY(-76px) scaleX(1)    scaleY(1);    animation-timing-function:cubic-bezier(0.215,0.61,0.355,1); }
+      97%  { transform:translateX(-50%) translateY(0)     scaleX(1.13) scaleY(0.87); animation-timing-function:cubic-bezier(0.215,0.61,0.355,1); }
+      100% { transform:translateX(-50%) translateY(0)     scaleX(1)    scaleY(1); }
+    }
+    @keyframes landSpin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes landShadow {
+      0%,100%{transform:translateX(-50%) scale(1)    scaleY(0.8); opacity:0.35;}
+      50%    {transform:translateX(-50%) scale(0.18) scaleY(0.4); opacity:0.08;}
+    }
+    @keyframes landQF0 { 0%,100%{opacity:0.55;transform:translate(0,0)}    50%{opacity:1;transform:translate(-4px,-5px)} }
+    @keyframes landQF1 { 0%,100%{opacity:0.45;transform:translate(0,0)}    50%{opacity:0.9;transform:translate(-3px,5px)} }
+    @keyframes landQF2 { 0%,100%{opacity:0.55;transform:translate(0,0)}    50%{opacity:1;transform:translate(4px,-4px)} }
+    @keyframes landQF3 { 0%,100%{opacity:0.45;transform:translate(0,0)}    50%{opacity:0.85;transform:translate(3px,5px)} }
+    @keyframes landTick { 0%,8%{opacity:1;transform:translateY(0)} 28%{opacity:0;transform:translateY(-16px)} 30%{opacity:0;transform:translateY(16px)} 52%,100%{opacity:1;transform:translateY(0)} }
+    @keyframes landMeter{ 0%,12%{width:0%} 70%,100%{width:72%} }
+    @keyframes landDice {
+      0%,8%  {transform:rotateX(0deg)   rotateY(0deg)   rotateZ(0deg);}
+      28%    {transform:rotateX(200deg) rotateY(120deg) rotateZ(50deg);}
+      55%    {transform:rotateX(380deg) rotateY(260deg) rotateZ(100deg);}
+      78%,100%{transform:rotateX(360deg) rotateY(360deg) rotateZ(0deg);}
+    }
+    @keyframes landRankIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes landFloat  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+    @keyframes landScoreFlash { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes landChipFloat  { 0%,100%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-10px) rotate(6deg)} }
+    @keyframes landBgGlow { 0%,100%{opacity:0.5} 50%{opacity:1} }
   </style>
 </head>
 <body>
@@ -3301,7 +3337,7 @@
       );
     }
 
-    function HomeView({ gameCache, loadDate, spoilerMode, standings, favTeams, favPlayers, votes }) {
+    function HomeView({ gameCache, loadDate, spoilerMode, standings, favTeams, favPlayers, votes, autoOpenAllRecap, onAutoRecapOpened }) {
       const isMobile = useWindowWidth() < 600;
       const [selected, setSelected] = useState(DATES[1]);
       const [loading,  setLoading]  = useState(false);
@@ -3323,7 +3359,16 @@
         return () => { cancelled = true; };
       }, [selected]);
 
+      // Auto-open All NBA Recap when arriving from the landing page CatchUp button
       const games = gameCache[selected];
+      useEffect(() => {
+        if (!autoOpenAllRecap) return;
+        if (loading) return;
+        if (!games || !games.some(g => g.status === "Final")) return;
+        setShowAllRecap(true);
+        if (onAutoRecapOpened) onAutoRecapOpened();
+      }, [autoOpenAllRecap, loading, games]);
+
       return (
         <>
           <div style={{ background:"transparent" }}>
@@ -5720,10 +5765,369 @@
       );
     }
 
+    // ── Landing Page ─────────────────────────────────────────────────────────────
+
+    /* Bouncing basketball animation for CatchUp card */
+    function LandingBallAnim() {
+      return (
+        <div style={{ position:"relative", width:110, height:140, flexShrink:0 }}>
+          {/* Bouncing + spinning ball */}
+          <div style={{ position:"absolute", left:"50%", top:8,
+            animation:"landBounce 1.55s cubic-bezier(0.28,0.84,0.42,1) infinite" }}>
+            <div style={{ animation:"landSpin 1.55s linear infinite", marginLeft:-34 }}>
+              <svg width="68" height="68" viewBox="0 0 68 68">
+                <defs>
+                  <radialGradient id="bg1" cx="38%" cy="30%">
+                    <stop offset="0%" stopColor="#ffaa55"/>
+                    <stop offset="55%" stopColor="#e06000"/>
+                    <stop offset="100%" stopColor="#993800"/>
+                  </radialGradient>
+                </defs>
+                <circle cx="34" cy="34" r="32" fill="url(#bg1)" stroke="#7a2c00" strokeWidth="1.5"/>
+                <path d="M34,2 Q54,20 54,34 Q54,48 34,66" fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="2.2"/>
+                <path d="M34,2 Q14,20 14,34 Q14,48 34,66" fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="2.2"/>
+                <path d="M2,34 Q20,15 34,15 Q48,15 66,34" fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="2.2"/>
+                <path d="M2,34 Q20,53 34,53 Q48,53 66,34" fill="none" stroke="rgba(0,0,0,0.32)" strokeWidth="2.2"/>
+                <circle cx="34" cy="34" r="32" fill="none" stroke="rgba(255,180,80,0.18)" strokeWidth="1"/>
+              </svg>
+            </div>
+          </div>
+          {/* Shadow */}
+          <div style={{ position:"absolute", bottom:2, left:"50%", width:52, height:11,
+            borderRadius:"50%", background:"rgba(0,0,0,0.45)", filter:"blur(4px)",
+            animation:"landShadow 1.55s cubic-bezier(0.28,0.84,0.42,1) infinite" }}/>
+          {/* Quarter labels floating around */}
+          {[["Q1",-26,18,"landQF0"],["Q2",-26,70,"landQF1"],["Q3",100,18,"landQF2"],["Q4",100,70,"landQF3"]].map(([lbl,lx,ly,anim]) => (
+            <div key={lbl} style={{ position:"absolute", left:lx, top:ly,
+              fontSize:10, fontWeight:900, color:"#f59e0b", letterSpacing:"0.05em",
+              animation:`${anim} 2s ease-in-out infinite`,
+              textShadow:"0 0 8px rgba(245,158,11,0.6)" }}>{lbl}</div>
+          ))}
+        </div>
+      );
+    }
+
+    /* Scoreboard + stats animation for Games card */
+    function LandingScoreAnim() {
+      const [tick, setTick] = React.useState(0);
+      useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 2800);
+        return () => clearInterval(id);
+      }, []);
+      const games = [
+        [["LAL","112"],["BOS","108"]],
+        [["GSW","98"], ["PHX","103"]],
+        [["MIL","115"],["NYK","109"]],
+      ];
+      const stats = [
+        { l:"PTS", vals:[34,28,41], c:"#f59e0b" },
+        { l:"REB", vals:[12,7,15],  c:"#60a5fa" },
+        { l:"AST", vals:[8,11,6],   c:"#34d399" },
+      ];
+      const g = games[tick % games.length];
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:"100%", alignItems:"center" }}>
+          {/* Mini scoreboard */}
+          <div style={{ width:170, background:"rgba(0,0,0,0.35)", borderRadius:12,
+            border:"1px solid rgba(96,165,250,0.25)", padding:"8px 12px",
+            display:"flex", flexDirection:"column", gap:4 }}>
+            {g.map(([team,score],i) => (
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <img src={logoUrl(team)} width={18} height={18} style={{ borderRadius:4, objectFit:"contain" }}
+                    onError={e=>{e.target.style.display='none'}}/>
+                  <span style={{ fontSize:13, fontWeight:800, color:"white", letterSpacing:"0.02em" }}>{team}</span>
+                </div>
+                <span style={{ fontSize:16, fontWeight:900, color:"#60a5fa",
+                  animation:"landTick 2.8s ease-in-out infinite",
+                  fontVariantNumeric:"tabular-nums" }}>{score}</span>
+              </div>
+            ))}
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textAlign:"center",
+              borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:3, marginTop:2,
+              animation:"landScoreFlash 1.4s ease-in-out infinite" }}>● FINAL</div>
+          </div>
+          {/* Stats pills */}
+          <div style={{ display:"flex", gap:10 }}>
+            {stats.map((s,i) => (
+              <div key={s.l} style={{ textAlign:"center" }}>
+                <div style={{ fontSize:22, fontWeight:900, color:s.c,
+                  animation:`landTick 2.8s ease-in-out ${i*0.18}s infinite`,
+                  fontVariantNumeric:"tabular-nums",
+                  textShadow:`0 0 14px ${s.c}88`, lineHeight:1 }}>
+                  {s.vals[tick % s.vals.length]}
+                </div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)", fontWeight:700 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* Dice + leaderboard animation for Stakes card */
+    function LandingDiceAnim() {
+      const dotPos = {
+        1:[[50,50]],
+        2:[[25,25],[75,75]],
+        3:[[25,25],[50,50],[75,75]],
+        4:[[25,25],[75,25],[25,75],[75,75]],
+        5:[[25,25],[75,25],[50,50],[25,75],[75,75]],
+        6:[[25,22],[75,22],[25,50],[75,50],[25,78],[75,78]],
+      };
+      const [face, setFace] = React.useState(6);
+      useEffect(() => {
+        const id = setInterval(() => setFace(f => (f % 6) + 1), 2200);
+        return () => clearInterval(id);
+      }, []);
+      const dots = dotPos[face] ?? dotPos[6];
+      const leaders = [
+        { emoji:"🥇", name:"MVP_Kobe",  pct:89, color:"#fbbf24" },
+        { emoji:"🥈", name:"HoopsFan", pct:76, color:"#94a3b8" },
+        { emoji:"🥉", name:"NetGuru",  pct:71, color:"#cd7c3f" },
+      ];
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"center", width:"100%" }}>
+          <div style={{ display:"flex", gap:16, alignItems:"center" }}>
+            {/* Dice */}
+            <div style={{ perspective:120 }}>
+              <div style={{ width:58, height:58, borderRadius:12,
+                background:"linear-gradient(145deg,rgba(52,211,153,0.18),rgba(16,185,129,0.08))",
+                border:"2px solid rgba(52,211,153,0.5)",
+                boxShadow:"0 0 20px rgba(52,211,153,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+                position:"relative",
+                animation:"landDice 2.2s cubic-bezier(0.34,1.56,0.64,1) infinite",
+                transformStyle:"preserve-3d" }}>
+                <svg width="58" height="58" viewBox="0 0 100 100" style={{ position:"absolute",inset:0 }}>
+                  {dots.map(([dx,dy],di) => (
+                    <circle key={di} cx={dx} cy={dy} r="9"
+                      fill="rgba(52,211,153,0.85)" filter="url(#diceGlow)"/>
+                  ))}
+                  <defs>
+                    <filter id="diceGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+            {/* Chip/coin */}
+            <div style={{ width:44, height:44, borderRadius:"50%",
+              background:"linear-gradient(145deg,rgba(52,211,153,0.3),rgba(16,185,129,0.15))",
+              border:"2px solid rgba(52,211,153,0.6)",
+              boxShadow:"0 0 16px rgba(52,211,153,0.3)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              animation:"landChipFloat 2.2s ease-in-out 0.4s infinite",
+              fontSize:20 }}>🎯</div>
+          </div>
+          {/* Mini leaderboard */}
+          <div style={{ width:168, display:"flex", flexDirection:"column", gap:4 }}>
+            {leaders.map((l,i) => (
+              <div key={l.name} style={{ display:"flex", alignItems:"center", gap:7,
+                padding:"4px 8px", borderRadius:8,
+                background:"rgba(0,0,0,0.3)", border:"1px solid rgba(52,211,153,0.12)",
+                animation:`landRankIn 0.4s ease ${i*0.1}s both` }}>
+                <span style={{ fontSize:13 }}>{l.emoji}</span>
+                <span style={{ flex:1, fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.75)" }}>{l.name}</span>
+                <span style={{ fontSize:12, fontWeight:900, color:l.color }}>{l.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* Single landing card */
+    function LandingCard({ card, index, clickedId, isMobile, onClick }) {
+      const [hov, setHov] = React.useState(false);
+      const isClicked = clickedId === card.id;
+      return (
+        <div onClick={onClick}
+          onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+          style={{ flex:1, minWidth:0,
+            background: card.bg,
+            border: `1.5px solid ${hov || isClicked ? card.border : card.borderDim}`,
+            borderRadius: isMobile ? 18 : 24,
+            padding: isMobile ? "14px 14px" : "28px 24px 26px",
+            cursor: "pointer", position: "relative", overflow: "hidden",
+            display: "flex",
+            flexDirection: isMobile ? "row" : "column",
+            alignItems: isMobile ? "center" : "flex-start",
+            gap: isMobile ? 12 : 0,
+            transition: "all 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+            transform: isClicked ? "scale(1.03)" : hov && !isMobile ? "translateY(-10px) scale(1.015)" : "translateY(0) scale(1)",
+            boxShadow: isClicked
+              ? `0 0 70px ${card.glow}, 0 24px 70px rgba(0,0,0,0.65)`
+              : hov && !isMobile
+              ? `0 14px 52px ${card.glow}, 0 28px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12)`
+              : `0 4px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)`,
+            animation: `landCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) ${0.18 + index * (isMobile ? 0.08 : 0.12)}s both`,
+          }}>
+          {/* Ambient glow blob */}
+          <div style={{ position:"absolute", top:-50, right:-50, width:180, height:180,
+            borderRadius:"50%", background: card.glowBlob, filter:"blur(50px)",
+            pointerEvents:"none", transition:"opacity 0.3s", opacity: hov ? 1 : 0.5,
+            animation:"landBgGlow 3s ease-in-out infinite" }}/>
+          {/* Subtle grid pattern */}
+          <div style={{ position:"absolute", inset:0, borderRadius:24, pointerEvents:"none", overflow:"hidden",
+            backgroundImage:"radial-gradient(rgba(255,255,255,0.04) 1px,transparent 1px)",
+            backgroundSize:"22px 22px", opacity: hov ? 0.8 : 0.4, transition:"opacity 0.3s" }}/>
+
+          {/* Animation area */}
+          <div style={{ width: isMobile ? 80 : "100%",
+            height: isMobile ? 80 : 162, flexShrink:0,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            marginBottom: isMobile ? 0 : 20, position:"relative" }}>
+            {isMobile ? (
+              /* On mobile: compact glowing emoji orb (full animations are too wide/tall) */
+              <div style={{ width:72, height:72, borderRadius:"50%", flexShrink:0,
+                background:`radial-gradient(circle at 38% 36%,${card.glowBlobBright},${card.glowBlob})`,
+                border:`2px solid ${card.border}`,
+                boxShadow:`0 0 22px ${card.glow}, inset 0 1px 0 rgba(255,255,255,0.15)`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:30, animation:"landFloat 2.8s ease-in-out infinite" }}>
+                {card.icon}
+              </div>
+            ) : (
+              <>
+                {card.anim === "catchup" && <LandingBallAnim />}
+                {card.anim === "games"   && <LandingScoreAnim />}
+                {card.anim === "stakes"  && <LandingDiceAnim />}
+              </>
+            )}
+          </div>
+
+          {/* Text content */}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize: isMobile ? 9 : 10, fontWeight:800, letterSpacing:"0.14em",
+              color: card.color, marginBottom: isMobile ? 3 : 5, textTransform:"uppercase",
+              opacity:0.9, textShadow:`0 0 12px ${card.glow}` }}>{card.subtitle}</div>
+            <div style={{ fontSize: isMobile ? 16 : 22, fontWeight:900,
+              color:"white", letterSpacing:"-0.025em", marginBottom: isMobile ? 4 : 7,
+              textShadow:`0 2px 20px ${card.glow}`, lineHeight:1.1 }}>{card.title}</div>
+            <div style={{ fontSize: isMobile ? 11 : 13, color:"rgba(255,255,255,0.52)",
+              lineHeight:1.55, marginBottom: isMobile ? 8 : 22,
+              maxWidth: isMobile ? "none" : 260 }}>{card.desc}</div>
+            {/* CTA button — shown on both mobile and desktop */}
+            <button style={{ background: hov || isClicked
+                ? `linear-gradient(135deg,${card.color},${card.color}bb)`
+                : "rgba(255,255,255,0.08)",
+              border:`1px solid ${hov || isClicked ? card.border : "rgba(255,255,255,0.14)"}`,
+              borderRadius:20,
+              padding: isMobile ? "7px 14px" : "10px 22px",
+              color: hov || isClicked ? "#050910" : "white",
+              fontSize: isMobile ? 12 : 13, fontWeight:900, letterSpacing:"0.01em",
+              display:"flex", alignItems:"center", gap:6,
+              transition:"all 0.2s", pointerEvents:"none",
+              boxShadow: hov || isClicked ? `0 4px 18px ${card.glow}` : "none" }}>
+              <span style={{ fontSize: isMobile ? 14 : 16 }}>{card.icon}</span>
+              {card.btnLabel}
+              <span style={{ fontSize:11, opacity:0.7 }}>›</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* Main landing page */
+    function LandingPage({ onSelect }) {
+      const isMobile = useWindowWidth() < 600;
+      const [exiting, setExiting] = React.useState(false);
+      const [clickedId, setClickedId] = React.useState(null);
+
+      const handleClick = (which) => {
+        setClickedId(which);
+        setExiting(true);
+        setTimeout(() => onSelect(which), 480);
+      };
+
+      const cards = [
+        { id:"catchup", anim:"catchup",
+          title:"NBA CatchUp", subtitle:"Daily Recaps",
+          desc:"Watch every game unfold quarter by quarter — animated recaps with scoring runs and the night's top performers",
+          icon:"▶", btnLabel:"Watch Recap",
+          color:"#f59e0b", glow:"rgba(245,158,11,0.45)", glowBlob:"rgba(245,158,11,0.1)", glowBlobBright:"rgba(245,158,11,0.3)",
+          border:"rgba(245,158,11,0.55)", borderDim:"rgba(245,158,11,0.2)",
+          bg:"linear-gradient(155deg,rgba(28,14,4,0.96) 0%,rgba(18,24,48,0.97) 100%)" },
+        { id:"games", anim:"games",
+          title:"Games & Stats", subtitle:"Live Scores",
+          desc:"Live scores, box scores, standings, and highlights — plus in-depth stats for every player and team across the league",
+          icon:"📊", btnLabel:"View Games",
+          color:"#60a5fa", glow:"rgba(96,165,250,0.45)", glowBlob:"rgba(96,165,250,0.1)", glowBlobBright:"rgba(96,165,250,0.3)",
+          border:"rgba(96,165,250,0.55)", borderDim:"rgba(96,165,250,0.2)",
+          bg:"linear-gradient(155deg,rgba(4,14,36,0.96) 0%,rgba(8,22,52,0.97) 100%)" },
+        { id:"stakes", anim:"stakes",
+          title:"Stakes", subtitle:"Bet & Compete",
+          desc:"Pick game winners, bet on the margin, and climb the ranks from Rookie to Legend on the global leaderboard",
+          icon:"🎲", btnLabel:"Enter Stakes",
+          color:"#34d399", glow:"rgba(52,211,153,0.45)", glowBlob:"rgba(52,211,153,0.1)", glowBlobBright:"rgba(52,211,153,0.3)",
+          border:"rgba(52,211,153,0.55)", borderDim:"rgba(52,211,153,0.2)",
+          bg:"linear-gradient(155deg,rgba(2,20,14,0.96) 0%,rgba(4,20,36,0.97) 100%)" },
+      ];
+
+      return (
+        <div style={{ position:"fixed", inset:0, zIndex:100,
+          display:"flex", flexDirection:"column", alignItems:"center",
+          /* centre vertically when content fits; scroll naturally on small screens */
+          justifyContent: isMobile ? "flex-start" : "center",
+          background:"rgba(2,6,18,0.88)", backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
+          padding: isMobile ? "20px 14px 20px" : "28px 32px",
+          overflowY:"auto", WebkitOverflowScrolling:"touch",
+          animation: exiting ? "landPageExit 0.48s ease forwards" : "landPageEnter 0.35s ease both" }}>
+
+          {/* Title block */}
+          <div style={{ textAlign:"center", marginBottom: isMobile ? 18 : 36, width:"100%",
+            animation:"landTitleIn 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.08s both" }}>
+            {/* Shining logo */}
+            <div style={{ fontSize: isMobile ? 30 : 58, fontWeight:900, letterSpacing:"-0.04em",
+              background:"linear-gradient(90deg,#f59e0b 0%,#ffffff 30%,#60a5fa 50%,#ffffff 70%,#f59e0b 100%)",
+              backgroundSize:"300% auto",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
+              animation:"landShine 4.5s linear infinite",
+              marginBottom: isMobile ? 5 : 10, lineHeight:1.1,
+              filter:"drop-shadow(0 0 30px rgba(245,158,11,0.3))" }}>
+              🏀 NBA CatchUp
+            </div>
+            <div style={{ fontSize: isMobile ? 11 : 16, color:"rgba(255,255,255,0.4)",
+              fontWeight:500, letterSpacing:"0.1em", textTransform:"uppercase" }}>
+              What would you like to do?
+            </div>
+          </div>
+
+          {/* Cards column (mobile) / row (desktop) */}
+          <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row",
+            gap: isMobile ? 10 : 18, width:"100%", maxWidth:1060,
+            alignItems:"stretch" }}>
+            {cards.map((card, i) => (
+              <LandingCard key={card.id} card={card} index={i}
+                clickedId={clickedId} isMobile={isMobile}
+                onClick={() => handleClick(card.id)} />
+            ))}
+          </div>
+
+          {/* Skip link */}
+          <div style={{ marginTop: isMobile ? 14 : 24, textAlign:"center",
+            animation:"landTitleIn 0.5s ease 0.55s both" }}>
+            <button onClick={() => handleClick("games")}
+              style={{ background:"none", border:"none", color:"rgba(255,255,255,0.25)",
+                fontSize: isMobile ? 11 : 12, fontWeight:500, cursor:"pointer",
+                letterSpacing:"0.04em", transition:"color 0.2s", padding:"4px 0" }}
+              onMouseEnter={e => e.currentTarget.style.color="rgba(255,255,255,0.6)"}
+              onMouseLeave={e => e.currentTarget.style.color="rgba(255,255,255,0.25)"}>
+              Skip to Games →
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     // ── Root ─────────────────────────────────────────────────────────────────────
     function NBAGames() {
       const isMobile = useWindowWidth() < 600;
-      const [view,        setView]        = useState("home");
+      const [showLanding,      setShowLanding]      = useState(true);
+      const [autoOpenAllRecap, setAutoOpenAllRecap] = useState(false);
+      const [view,             setView]             = useState("home");
       const [spoilerMode, setSpoilerMode] = useState(() => { try { return localStorage.getItem("nba-spoiler-mode") === "true"; } catch { return false; } });
       const [gameCache,   setGameCache]   = useState({});
       const [apiStandings,  setApiStandings]  = useState({});
@@ -5900,6 +6304,21 @@
       const isTeam     = view?.type === "team";
       const isPlayer   = view?.type === "player";
 
+      // Landing page handler — routes user to the right view
+      const handleLandingSelect = React.useCallback((which) => {
+        if (which === "stakes") {
+          setView("stakes");
+        } else if (which === "catchup") {
+          setView("home");
+          setAutoOpenAllRecap(true); // tell HomeView to launch the All NBA Recap as soon as games load
+        } else {
+          setView("home");
+        }
+        setShowLanding(false);
+      }, []);
+
+      if (showLanding) return <LandingPage onSelect={handleLandingSelect} />;
+
       return (
         <div style={{ minHeight:"100vh", background:"rgba(238,244,255,0.08)" }}>
           {/* Header */}
@@ -5995,7 +6414,8 @@
 
             {/* ── Main content ── */}
             <div style={{ flex:1, minWidth:0 }}>
-              {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} standings={standings} favTeams={favTeams} favPlayers={favPlayers} votes={votes} />}
+              {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} standings={standings} favTeams={favTeams} favPlayers={favPlayers} votes={votes}
+                autoOpenAllRecap={autoOpenAllRecap} onAutoRecapOpened={() => setAutoOpenAllRecap(false)} />}
               {isFavs  && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
                 favPlayers={favPlayers} setFavPlayers={setFavPlayers}
                 onSelectTeam={t => setView({type:"team",team:t})}
