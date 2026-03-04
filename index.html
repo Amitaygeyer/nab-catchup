@@ -4690,10 +4690,20 @@
         const friendUids = currentUser?.friends ?? [];
         const av = id => AVATARS.find(a => a.id === id) ?? AVATARS[0];
 
-        const winner    = getWinner(game);
-        const allVotes  = votes[`${date}_${game.id}`] ?? {};
-        const myVote    = allVotes[currentUser?.uid]?.teamAbbr ?? null;
-        const myResult  = myVote && winner ? (myVote === winner ? "correct" : "wrong") : null;
+        const winner      = getWinner(game);
+        const allVotes    = votes[`${date}_${game.id}`] ?? {};
+        const myVoteEntry = allVotes[currentUser?.uid] ?? null;
+        const myVote      = myVoteEntry?.teamAbbr ?? null;
+        const mySpread    = myVoteEntry?.spread ?? null;
+        const myResult    = myVote && winner ? (myVote === winner ? "correct" : "wrong") : null;
+        const actualMargin = (game.home.score != null && game.visitor.score != null)
+          ? Math.abs(game.home.score - game.visitor.score) : null;
+        // Wrong team: error = mySpread + actualMargin (e.g. predicted win by 4, lost by 4 → 8 off)
+        // Right team: error = |mySpread - actualMargin|
+        const spreadErr   = (mySpread != null && actualMargin != null)
+          ? (myResult === "wrong" ? mySpread + actualMargin : Math.abs(mySpread - actualMargin))
+          : null;
+        const spreadOnTarget = spreadErr != null && spreadErr <= 5;
         const voterList = Object.entries(allVotes);
         if (!winner && voterList.length === 0) return null;
 
@@ -4755,141 +4765,280 @@
               )}
             </div>
 
-            {/* Vote % bar */}
-            {total > 0 && (
-              <div style={{ padding:"10px 14px 0" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                    <TeamLogo abbr={game.visitor.abbreviation} size={14} />
-                    <span style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#a5b4fc" }}>{awayPct}%</span>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>({awayEntries.length})</span>
+            {/* Spread feedback — only shown if user placed a differential bet */}
+            {currentUser && myVote && mySpread != null && actualMargin != null && (() => {
+              // 1–10 bet score: team correct = base 5-10, wrong = base 1-4
+              const betScore = (() => {
+                if (myResult === "correct") {
+                  if (spreadErr === 0)  return 10;
+                  if (spreadErr <= 3)   return 9;
+                  if (spreadErr <= 6)   return 8;
+                  if (spreadErr <= 10)  return 7;
+                  if (spreadErr <= 15)  return 6;
+                  return 5;
+                } else {
+                  if (spreadErr === 0)  return 4;
+                  if (spreadErr <= 5)   return 3;
+                  if (spreadErr <= 10)  return 2;
+                  return 1;
+                }
+              })();
+              const scoreColor = betScore >= 8 ? "#4ade80" : betScore >= 6 ? "#fbbf24" : betScore >= 4 ? "#fb923c" : "#f87171";
+              const scoreBg    = betScore >= 8 ? "rgba(74,222,128,0.12)" : betScore >= 6 ? "rgba(251,191,36,0.12)" : betScore >= 4 ? "rgba(251,146,60,0.12)" : "rgba(248,113,113,0.12)";
+              const scoreBorder= betScore >= 8 ? "rgba(74,222,128,0.3)"  : betScore >= 6 ? "rgba(251,191,36,0.3)"  : betScore >= 4 ? "rgba(251,146,60,0.3)"  : "rgba(248,113,113,0.3)";
+              const verdictCorrect = myResult === "correct";
+              return (
+                <div style={{ margin:"0 0 2px", borderTop:"1px solid rgba(255,255,255,0.1)",
+                  background: verdictCorrect ? "rgba(74,222,128,0.06)" : "rgba(248,113,113,0.06)",
+                  padding:"12px 14px 14px" }}>
+
+                  {/* Top row: verdict + score */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                    {/* Big verdict */}
+                    <div style={{ display:"flex", alignItems:"center", gap:8,
+                      background: verdictCorrect ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)",
+                      border:`1.5px solid ${verdictCorrect ? "rgba(74,222,128,0.5)" : "rgba(248,113,113,0.5)"}`,
+                      borderRadius:12, padding:"6px 14px" }}>
+                      <span style={{ fontSize:20 }}>{verdictCorrect ? "✅" : "❌"}</span>
+                      <div>
+                        <div style={{ fontSize:isMobile?13:15, fontWeight:900, color: verdictCorrect ? "#4ade80" : "#f87171",
+                          letterSpacing:"0.03em", lineHeight:1.1 }}>
+                          {verdictCorrect ? "CORRECT PICK" : "WRONG PICK"}
+                        </div>
+                        <div style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.45)", marginTop:1 }}>
+                          You picked {myVote} · Actual winner {winner}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bet score badge */}
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
+                      background: scoreBg, border:`1.5px solid ${scoreBorder}`,
+                      borderRadius:12, padding:"6px 14px", minWidth:60 }}>
+                      <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.5)", letterSpacing:"0.07em" }}>BET SCORE</span>
+                      <span style={{ fontSize:28, fontWeight:900, color:scoreColor, lineHeight:1.1 }}>{betScore}</span>
+                      <span style={{ fontSize:9, fontWeight:600, color:"rgba(255,255,255,0.35)" }}>/10</span>
+                    </div>
                   </div>
-                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:700 }}>{total} pick{total !== 1 ? "s" : ""}</span>
+
+                  {/* Spread comparison row */}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5,
+                      background:"rgba(255,255,255,0.07)", borderRadius:8, padding:"5px 10px" }}>
+                      <SI n="Target" size={11} color="rgba(255,255,255,0.4)" />
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.45)", fontWeight:600 }}>YOUR SPREAD</span>
+                      <span style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white" }}>{myVote} by {mySpread}</span>
+                    </div>
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.25)", fontWeight:300 }}>vs</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:5,
+                      background:"rgba(255,255,255,0.07)", borderRadius:8, padding:"5px 10px" }}>
+                      <SI n="Flag" size={11} color="rgba(255,255,255,0.4)" />
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.45)", fontWeight:600 }}>ACTUAL</span>
+                      <span style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white" }}>{winner} by {actualMargin}</span>
+                    </div>
+                    <div style={{ marginLeft:"auto",
+                      fontSize:isMobile?10:11, fontWeight:800, padding:"4px 10px", borderRadius:20,
+                      background: spreadOnTarget ? "rgba(74,222,128,0.18)" : spreadErr <= 10 ? "rgba(251,191,36,0.15)" : "rgba(248,113,113,0.15)",
+                      color: spreadOnTarget ? "#4ade80" : spreadErr <= 10 ? "#fbbf24" : "#f87171",
+                      border:`1px solid ${spreadOnTarget ? "rgba(74,222,128,0.4)" : spreadErr <= 10 ? "rgba(251,191,36,0.3)" : "rgba(248,113,113,0.3)"}`,
+                      whiteSpace:"nowrap" }}>
+                      {spreadErr === 0 ? "🎯 Perfect spread!" : `Off by ${spreadErr} pts`}
+                    </div>
+                  </div>
+
+                  {/* 1–10 meter */}
+                  <div>
+                    <div style={{ display:"flex", gap:3 }}>
+                      {Array.from({length:10},(_,i)=>{
+                        const seg = i + 1;
+                        const filled = seg <= betScore;
+                        const segColor = seg <= 2 ? "#f87171" : seg <= 4 ? "#fb923c" : seg <= 6 ? "#fbbf24" : seg <= 8 ? "#4ade80" : "#34d399";
+                        return (
+                          <div key={seg} style={{ flex:1, height:8, borderRadius:3,
+                            background: filled ? segColor : "rgba(255,255,255,0.1)",
+                            boxShadow: filled ? `0 0 6px ${segColor}88` : "none",
+                            transition:"all 0.3s" }} />
+                        );
+                      })}
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:3 }}>
+                      <span style={{ fontSize:8, color:"rgba(255,255,255,0.25)" }}>1 — Poor</span>
+                      <span style={{ fontSize:8, color:"rgba(255,255,255,0.25)" }}>10 — Perfect</span>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
+
+            {/* Community picks — distinct design from spread section */}
+            {total > 0 && (
+              <div style={{ margin:"0 10px 10px", borderRadius:12,
+                background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)" }}>
+                {/* Header row */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"7px 12px 6px", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>({homeEntries.length})</span>
-                    <span style={{ fontSize:isMobile?11:12, fontWeight:900, color:"#f59e0b" }}>{homePct}%</span>
-                    <TeamLogo abbr={game.home.abbreviation} size={14} />
+                    <SI n="Users" size={11} color="#94a3b8" />
+                    <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.06em", color:"#94a3b8" }}>COMMUNITY PICKS</span>
+                  </div>
+                  <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.3)",
+                    background:"rgba(255,255,255,0.07)", borderRadius:20, padding:"2px 8px" }}>
+                    {total} vote{total !== 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                {/* Big % numbers */}
+                <div style={{ padding:"10px 12px 8px" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    {/* Away side */}
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start" }}>
+                      <span style={{ fontSize:isMobile?22:26, fontWeight:900, lineHeight:1,
+                        color: winner === game.visitor.abbreviation ? "#22d3ee" : "rgba(255,255,255,0.35)" }}>
+                        {awayPct}%
+                      </span>
+                      <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
+                        <TeamLogo abbr={game.visitor.abbreviation} size={13} />
+                        <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>
+                          {game.visitor.abbreviation}
+                        </span>
+                        {myVote === game.visitor.abbreviation && (
+                          <span style={{ fontSize:8, fontWeight:800, color:"#22d3ee",
+                            background:"rgba(34,211,238,0.15)", borderRadius:4, padding:"1px 5px" }}>YOU</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Home side */}
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
+                      <span style={{ fontSize:isMobile?22:26, fontWeight:900, lineHeight:1,
+                        color: winner === game.home.abbreviation ? "#fb923c" : "rgba(255,255,255,0.35)" }}>
+                        {homePct}%
+                      </span>
+                      <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
+                        {myVote === game.home.abbreviation && (
+                          <span style={{ fontSize:8, fontWeight:800, color:"#fb923c",
+                            background:"rgba(251,146,60,0.15)", borderRadius:4, padding:"1px 5px" }}>YOU</span>
+                        )}
+                        <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>
+                          {game.home.abbreviation}
+                        </span>
+                        <TeamLogo abbr={game.home.abbreviation} size={13} />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div style={{ height:8, borderRadius:6, background:"rgba(255,255,255,0.1)", overflow:"hidden", display:"flex" }}>
-                  <div style={{ width:`${awayPct}%`, background:"linear-gradient(90deg,#6366f1,#818cf8)", transition:"width 0.5s", borderRadius:"6px 0 0 6px" }} />
-                  <div style={{ flex:1, background:"linear-gradient(90deg,#f59e0b,#fbbf24)", borderRadius:"0 6px 6px 0" }} />
+
+                {/* Expand chips */}
+                <div style={{ display:"flex", gap:6, padding:"0 12px 10px" }}>
+                  <button onClick={() => { setShowAll(p => !p); setShowFriends(false); }}
+                    style={{ display:"flex", alignItems:"center", gap:4,
+                      padding:"5px 10px", borderRadius:20, cursor:"pointer",
+                      background: showAll ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.07)",
+                      border: showAll ? "1px solid rgba(34,211,238,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                      fontSize:isMobile?9:10, fontWeight:700,
+                      color: showAll ? "#22d3ee" : "rgba(255,255,255,0.5)", transition:"all 0.15s" }}>
+                    <SI n="ChevronDown" size={10} color={showAll ? "#22d3ee" : "rgba(255,255,255,0.4)"} />
+                    All {total} pick{total !== 1 ? "s" : ""}
+                  </button>
+                  {currentUser && (
+                    <button onClick={() => { setShowFriends(p => !p); setShowAll(false); }}
+                      style={{ display:"flex", alignItems:"center", gap:4,
+                        padding:"5px 10px", borderRadius:20, cursor:"pointer",
+                        background: showFriends ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.07)",
+                        border: showFriends ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                        fontSize:isMobile?9:10, fontWeight:700,
+                        color: showFriends ? "#c4b5fd" : "rgba(255,255,255,0.5)", transition:"all 0.15s" }}>
+                      <SI n="Handshake" size={10} color={showFriends ? "#c4b5fd" : "rgba(255,255,255,0.4)"} />
+                      Friends{friendTotal > 0 ? ` (${friendTotal})` : ""}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Toggle buttons */}
-            <div style={{ display:"flex", borderTop:"1px solid rgba(255,255,255,0.08)", marginTop: total > 0 ? 10 : 0 }}>
-              <button onClick={() => { setShowAll(p => !p); setShowFriends(false); }}
-                style={{ flex:1, padding:"9px 8px", background: showAll ? "rgba(99,102,241,0.15)" : "none",
-                  border:"none", borderRight:"1px solid rgba(255,255,255,0.08)", cursor:"pointer",
-                  fontSize:isMobile?10:11, fontWeight:700, color:"#a5b4fc",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <SI n="Users" size={12} />
-                <span>{total > 0 ? `All ${total} pick${total !== 1 ? "s" : ""}` : "No picks"}</span>
-                <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showAll ? "▲" : "▼"}</span>
-              </button>
-              <button onClick={() => { setShowFriends(p => !p); setShowAll(false); }}
-                style={{ flex:1, padding:"9px 8px", background: showFriends ? "rgba(124,58,237,0.2)" : "none",
-                  border:"none", cursor:"pointer",
-                  fontSize:isMobile?10:11, fontWeight:700, color:"#c4b5fd",
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                <SI n="Handshake" size={12} />
-                <span>Friends{friendTotal > 0 ? ` (${friendTotal})` : ""}</span>
-                <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{showFriends ? "▲" : "▼"}</span>
-              </button>
-            </div>
-
             {/* All picks panel */}
             {showAll && (
-              <div style={{ padding:"0 12px 12px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-                {total === 0 ? (
-                  <div style={{ textAlign:"center", fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>No picks for this game</div>
-                ) : (
-                  <div style={{ display:"flex", gap:10, marginTop:12 }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8, padding:"5px 8px",
-                        background:"rgba(99,102,241,0.2)", borderRadius:8, border:"1px solid rgba(99,102,241,0.35)" }}>
-                        <TeamLogo abbr={game.visitor.abbreviation} size={16} />
-                        <span style={{ fontSize:10, fontWeight:900, color:"#a5b4fc" }}>{game.visitor.abbreviation}</span>
-                        <span style={{ fontSize:9, color:"#a5b4fc", marginLeft:"auto" }}>{awayPct}%</span>
-                      </div>
-                      {awayEntries.length > 0
-                        ? awayEntries.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
-                        : <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>}
+              <div style={{ padding:"0 10px 10px" }}>
+                <div style={{ display:"flex", gap:8, borderRadius:10, overflow:"hidden",
+                  border:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.2)" }}>
+                  <div style={{ flex:1, minWidth:0, padding:"8px 10px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7, paddingBottom:6,
+                      borderBottom:"1px solid rgba(34,211,238,0.2)" }}>
+                      <TeamLogo abbr={game.visitor.abbreviation} size={14} />
+                      <span style={{ fontSize:10, fontWeight:900, color:"#22d3ee" }}>{game.visitor.abbreviation}</span>
+                      <span style={{ fontSize:9, color:"rgba(34,211,238,0.6)", marginLeft:"auto" }}>{awayPct}%</span>
                     </div>
-                    <div style={{ width:1, background:"rgba(255,255,255,0.1)", flexShrink:0 }} />
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8, padding:"5px 8px",
-                        background:"rgba(245,158,11,0.2)", borderRadius:8, border:"1px solid rgba(245,158,11,0.4)" }}>
-                        <TeamLogo abbr={game.home.abbreviation} size={16} />
-                        <span style={{ fontSize:10, fontWeight:900, color:"#fbbf24" }}>{game.home.abbreviation}</span>
-                        <span style={{ fontSize:9, color:"#fbbf24", marginLeft:"auto" }}>{homePct}%</span>
-                      </div>
-                      {homeEntries.length > 0
-                        ? homeEntries.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
-                        : <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>}
-                    </div>
+                    {awayEntries.length > 0
+                      ? awayEntries.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
+                      : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>No picks</div>}
                   </div>
-                )}
+                  <div style={{ width:1, background:"rgba(255,255,255,0.08)", flexShrink:0 }} />
+                  <div style={{ flex:1, minWidth:0, padding:"8px 10px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7, paddingBottom:6,
+                      borderBottom:"1px solid rgba(251,146,60,0.2)" }}>
+                      <TeamLogo abbr={game.home.abbreviation} size={14} />
+                      <span style={{ fontSize:10, fontWeight:900, color:"#fb923c" }}>{game.home.abbreviation}</span>
+                      <span style={{ fontSize:9, color:"rgba(251,146,60,0.6)", marginLeft:"auto" }}>{homePct}%</span>
+                    </div>
+                    {homeEntries.length > 0
+                      ? homeEntries.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
+                      : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>No picks</div>}
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Friends picks panel */}
             {showFriends && (
-              <div style={{ padding:"0 12px 12px", borderTop:"1px solid rgba(124,58,237,0.25)",
-                background:"rgba(124,58,237,0.08)" }}>
-                {!currentUser ? (
-                  <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>Sign in to see friends' picks</div>
-                ) : friendUids.length === 0 ? (
-                  <div style={{ textAlign:"center", fontSize:12, color:"#c4b5fd", padding:"12px 0", fontWeight:600 }}>Add friends in the <b>Friends</b> tab</div>
+              <div style={{ padding:"0 10px 10px" }}>
+                {friendUids.length === 0 ? (
+                  <div style={{ textAlign:"center", fontSize:11, color:"#c4b5fd", padding:"10px 0", fontWeight:600,
+                    background:"rgba(167,139,250,0.08)", borderRadius:10, border:"1px solid rgba(167,139,250,0.15)" }}>
+                    Add friends in the <b>Friends</b> tab
+                  </div>
                 ) : friendTotal === 0 ? (
-                  <div style={{ textAlign:"center", fontSize:12, color:"rgba(255,255,255,0.4)", padding:"12px 0" }}>None of your friends picked this game</div>
+                  <div style={{ textAlign:"center", fontSize:11, color:"rgba(255,255,255,0.4)", padding:"10px 0",
+                    background:"rgba(255,255,255,0.04)", borderRadius:10, border:"1px solid rgba(255,255,255,0.08)" }}>
+                    None of your friends picked this game
+                  </div>
                 ) : (
-                  <>
-                    <div style={{ padding:"10px 0 8px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                          <TeamLogo abbr={game.visitor.abbreviation} size={13} />
-                          <span style={{ fontSize:11, fontWeight:900, color:"#a78bfa" }}>{friendAwayPct}%</span>
-                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>({friendAway.length})</span>
-                        </div>
-                        <span style={{ fontSize:9, color:"#c4b5fd", fontWeight:700 }}>{friendTotal} friend{friendTotal !== 1 ? "s" : ""} voted</span>
-                        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>({friendHome.length})</span>
-                          <span style={{ fontSize:11, fontWeight:900, color:"#f59e0b" }}>{friendHomePct}%</span>
-                          <TeamLogo abbr={game.home.abbreviation} size={13} />
-                        </div>
+                  <div style={{ borderRadius:10, overflow:"hidden", border:"1px solid rgba(167,139,250,0.2)",
+                    background:"rgba(0,0,0,0.2)" }}>
+                    {/* Friends header */}
+                    <div style={{ padding:"8px 10px 6px", borderBottom:"1px solid rgba(167,139,250,0.12)",
+                      display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <TeamLogo abbr={game.visitor.abbreviation} size={12} />
+                        <span style={{ fontSize:11, fontWeight:900, color:"#22d3ee" }}>{friendAwayPct}%</span>
                       </div>
-                      <div style={{ height:7, borderRadius:5, background:"rgba(255,255,255,0.08)", overflow:"hidden", display:"flex" }}>
-                        <div style={{ width:`${friendAwayPct}%`, background:"linear-gradient(90deg,#7c3aed,#a78bfa)", transition:"width 0.4s" }} />
-                        <div style={{ flex:1, background:"linear-gradient(90deg,#f59e0b,#fbbf24)" }} />
+                      <span style={{ fontSize:9, fontWeight:700, color:"rgba(167,139,250,0.7)",
+                        background:"rgba(167,139,250,0.1)", borderRadius:20, padding:"2px 8px" }}>
+                        {friendTotal} friend{friendTotal !== 1 ? "s" : ""}
+                      </span>
+                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <span style={{ fontSize:11, fontWeight:900, color:"#fb923c" }}>{friendHomePct}%</span>
+                        <TeamLogo abbr={game.home.abbreviation} size={12} />
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6,
-                          padding:"4px 8px", background:"rgba(124,58,237,0.2)", borderRadius:7, border:"1px solid rgba(167,139,250,0.4)" }}>
-                          <TeamLogo abbr={game.visitor.abbreviation} size={14} />
-                          <span style={{ fontSize:9, fontWeight:900, color:"#a78bfa" }}>{game.visitor.abbreviation}</span>
-                        </div>
+                    <div style={{ display:"flex", gap:0 }}>
+                      <div style={{ flex:1, minWidth:0, padding:"7px 10px" }}>
+                        <div style={{ fontSize:9, fontWeight:800, color:"#22d3ee", marginBottom:5,
+                          letterSpacing:"0.05em" }}>{game.visitor.abbreviation}</div>
                         {friendAway.length > 0
                           ? friendAway.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
-                          : <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>}
+                          : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>No picks</div>}
                       </div>
                       <div style={{ width:1, background:"rgba(255,255,255,0.08)", flexShrink:0 }} />
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6,
-                          padding:"4px 8px", background:"rgba(245,158,11,0.2)", borderRadius:7, border:"1px solid rgba(245,158,11,0.4)" }}>
-                          <TeamLogo abbr={game.home.abbreviation} size={14} />
-                          <span style={{ fontSize:9, fontWeight:900, color:"#fbbf24" }}>{game.home.abbreviation}</span>
-                        </div>
+                      <div style={{ flex:1, minWidth:0, padding:"7px 10px" }}>
+                        <div style={{ fontSize:9, fontWeight:800, color:"#fb923c", marginBottom:5,
+                          letterSpacing:"0.05em", textAlign:"right" }}>{game.home.abbreviation}</div>
                         {friendHome.length > 0
                           ? friendHome.map(([uid, vote]) => <VRow key={uid} uid={uid} vote={vote} />)
-                          : <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontStyle:"italic", padding:"4px 8px" }}>No picks</div>}
+                          : <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic", textAlign:"right" }}>No picks</div>}
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}
