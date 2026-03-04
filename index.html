@@ -790,40 +790,33 @@
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:isMobile?10:11 }}>
               <thead>
                 <tr style={{ background:"rgba(245,158,11,0.12)" }}>
-                  <th style={{ textAlign:"left", padding:isMobile?"5px 4px":"7px 12px", fontWeight:600, color:"#fbbf24", whiteSpace:"nowrap" }}>Player</th>
-                  <th style={{ padding:isMobile?"5px 4px":"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>PTS</th>
-                  <th style={{ padding:isMobile?"5px 4px":"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>REB</th>
-                  <th style={{ padding:isMobile?"5px 4px":"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>AST</th>
-                  <th style={{ padding:isMobile?"5px 4px":"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>+/-</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>MIN</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>STL</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>BLK</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>FG</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>3PT</th>
-                  <th className="mobile-hide" style={{ padding:"7px 6px", fontWeight:600, color:"#fbbf24", textAlign:"center", whiteSpace:"nowrap" }}>FT</th>
+                  <th style={{ textAlign:"left", padding:"5px 8px 5px 10px", fontWeight:600, color:"#fbbf24", whiteSpace:"nowrap", position:"sticky", left:0, background:"rgba(14,20,44,0.98)", zIndex:1 }}>Player</th>
+                  {[["MIN","#93c5fd"],["PTS","#fbbf24"],["+/-","#6ee7b7"],["REB","#60a5fa"],["AST","#60a5fa"],["STL","#a78bfa"],["BLK","#a78bfa"],["TO","#f87171"],["PF","#f87171"],["FG","#38bdf8"],["3PT","#38bdf8"],["FT","#38bdf8"]].map(([h,c])=>(
+                    <th key={h} style={{ padding:"5px 5px", fontWeight:600, color:c, textAlign:"center", whiteSpace:"nowrap", minWidth:36 }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {players.map((p, i) => {
                   const pl = p.player ?? {}, pm = p.plus_minus;
+                  const minStr = p.min ? String(p.min).split(":")[0] : "—";
                   return (
                     <tr key={pl.id ?? i} style={{ background:i%2===0?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.02)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                      <td style={{ padding:isMobile?"5px 4px":"6px 12px", whiteSpace:"nowrap" }}>
+                      <td style={{ padding:"5px 8px 5px 10px", whiteSpace:"nowrap", position:"sticky", left:0, background:i%2===0?"rgba(14,20,44,0.97)":"rgba(12,17,40,0.97)", zIndex:1 }}>
                         <span style={{ fontWeight:500, color:"white" }}>{pl.first_name?.[0]}. {pl.last_name}</span>
                       </td>
-                      <td style={{ padding:isMobile?"5px 4px":"7px 6px", textAlign:"center", fontWeight:800, color:"white" }}>{p.pts??"—"}</td>
-                      <td style={{ padding:isMobile?"5px 4px":"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.reb??"—"}</td>
-                      <td style={{ padding:isMobile?"5px 4px":"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.ast??"—"}</td>
-                      <td style={{ padding:isMobile?"5px 4px":"7px 6px", textAlign:"center", fontWeight:700,
-                        color:pm>0?"#16a34a":pm<0?"#ef4444":"#93c5fd" }}>
-                        {pm!=null?(pm>0?`+${pm}`:pm):"—"}
-                      </td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#93c5fd" }}>{p.min??"—"}</td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.stl??"—"}</td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#60a5fa" }}>{p.blk??"—"}</td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.fgm!=null?`${p.fgm}/${p.fga}`:"—"}</td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.fg3m!=null?`${p.fg3m}/${p.fg3a}`:"—"}</td>
-                      <td className="mobile-hide" style={{ padding:"7px 6px", textAlign:"center", color:"#2563eb" }}>{p.ftm!=null?`${p.ftm}/${p.fta}`:"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#93c5fd" }}>{minStr}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", fontWeight:800, color:"#fbbf24" }}>{p.pts??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", fontWeight:700, color:pm>0?"#4ade80":pm<0?"#f87171":"#6ee7b7" }}>{pm!=null?(pm>0?`+${pm}`:pm):"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#60a5fa" }}>{p.reb??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#60a5fa" }}>{p.ast??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#a78bfa" }}>{p.stl??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#a78bfa" }}>{p.blk??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#f87171" }}>{p.turnover??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#f87171" }}>{p.pf??"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#38bdf8" }}>{p.fgm!=null?`${p.fgm}/${p.fga}`:"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#38bdf8" }}>{p.fg3m!=null?`${p.fg3m}/${p.fg3a}`:"—"}</td>
+                      <td style={{ padding:"5px 5px", textAlign:"center", color:"#38bdf8" }}>{p.ftm!=null?`${p.ftm}/${p.fta}`:"—"}</td>
                     </tr>
                   );
                 })}
@@ -3224,9 +3217,9 @@
                     display:"flex", alignItems:"center", justifyContent:"center",
                     fontSize:isMobile?16:20 }}>{"🏀"}</div>
                   <div>
-                    <div style={{ fontWeight:900, fontSize:isMobile?12:14, color:"white" }}>Favorite Teams Recap</div>
+                    <div style={{ fontWeight:900, fontSize:isMobile?12:14, color:"white" }}>Favorite Teams CatchUp</div>
                     <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.4)", marginTop:2, lineHeight:1.4, maxWidth:isMobile?170:240 }}>
-                      Quarter by quarter recaps of your favorite NBA teams today
+                      Quarter by quarter recap of all daily games from your favorite teams
                     </div>
                   </div>
                 </div>
@@ -3261,9 +3254,9 @@
                     display:"flex", alignItems:"center", justifyContent:"center",
                     fontSize:isMobile?16:20 }}>{"📊"}</div>
                   <div>
-                    <div style={{ fontWeight:900, fontSize:isMobile?12:14, color:"white" }}>All NBA Recap</div>
+                    <div style={{ fontWeight:900, fontSize:isMobile?12:14, color:"white" }}>NBA CatchUp</div>
                     <div style={{ fontSize:isMobile?9:10, color:"rgba(255,255,255,0.4)", marginTop:2, lineHeight:1.4, maxWidth:isMobile?170:240 }}>
-                      Quarter by quarter recaps of all NBA games today
+                      Quarter by quarter recap of all daily NBA games played today
                     </div>
                   </div>
                 </div>
@@ -5616,7 +5609,7 @@
               display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <h1 style={{ fontSize:isMobile?17:22, fontWeight:900, color:"white", display:"flex", alignItems:"center", gap:8,
                 textShadow:"0 1px 8px rgba(245,158,11,0.4)" }}>
-                <SI n="Activity" size={isMobile?20:24} color="#f59e0b" /><span style={{ letterSpacing:"-0.02em" }}>{isMobile?" NBA":"  NBA CatchUp"}</span>
+                <SI n="Activity" size={isMobile?20:24} color="#f59e0b" /><span style={{ letterSpacing:"-0.02em" }}>{isMobile?" NBA CatchUp":"  NBA CatchUp"}</span>
               </h1>
               <div style={{ display:"flex", gap:isMobile?6:8, alignItems:"center" }}>
                 {/* Account button */}
@@ -5662,7 +5655,7 @@
                   boxShadow:spoilerMode?"0 2px 14px rgba(245,158,11,0.4)":"none",
                   transition:"all 0.2s" }}>
                   {spoilerMode ? <SI n="EyeOff" size={isMobile?14:15} /> : <SI n="Eye" size={isMobile?14:15} />}
-                  <span>{spoilerMode?"Hidden":"Visible"}</span>
+                  <span>{spoilerMode?"Hidden":"Spoilers"}</span>
                 </button>
               </div>
             </div>
