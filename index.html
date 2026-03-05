@@ -167,6 +167,10 @@
     @keyframes landScoreFlash { 0%,100%{opacity:1} 50%{opacity:0.5} }
     @keyframes landChipFloat  { 0%,100%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-10px) rotate(6deg)} }
     @keyframes landBgGlow { 0%,100%{opacity:0.5} 50%{opacity:1} }
+    @keyframes starOrbit { 0%{transform:rotate(0deg) translateX(var(--sr)) rotate(0deg)} 100%{transform:rotate(360deg) translateX(var(--sr)) rotate(-360deg)} }
+    @keyframes starGlow { 0%,100%{opacity:0.85;filter:drop-shadow(0 0 3px #fde68a)} 50%{opacity:1;filter:drop-shadow(0 0 7px #fbbf24)} }
+    @keyframes coinPop { 0%{transform:scale(0.6);opacity:0} 60%{transform:scale(1.25);opacity:1} 100%{transform:scale(1);opacity:1} }
+    @keyframes coinFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
   </style>
 </head>
 <body>
@@ -1918,7 +1922,7 @@
         try {
           const cred = await fbAuth.createUserWithEmailAndPassword(toEmail(username), password);
           const av = AVATARS.find(a => a.id === selAvatar) ?? AVATARS[0];
-          const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers, friends: [] };
+          const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers, friends: [], coins: 10, stars: 0, claimedPickCoins: {} };
           await fbDb.collection("users").doc(cred.user.uid).set(profile);
           setCurrentUser({ uid: cred.user.uid, ...profile });
           onClose();
@@ -2262,14 +2266,41 @@
       );
     };
 
-    // Avatar circle with rank-coloured ring
-    const UserAvatar = ({ avatarId, correct=0, size=32, showRank=false }) => {
+    // Avatar circle with rank-coloured ring + optional star decorations
+    const UserAvatar = ({ avatarId, correct=0, size=32, showRank=false, stars=0 }) => {
       const a = AVATARS.find(x => x.id === (avatarId ?? "bball")) ?? AVATARS[0];
       const r = getRank(correct);
       const pad = Math.max(2, Math.round(size * 0.07));
+      const numStars = Math.min(10, Math.max(0, stars || 0));
+      // Render stars around the avatar
+      const starEls = [];
+      if (numStars > 0) {
+        const orbitR = size * 0.68;
+        for (let i = 0; i < numStars; i++) {
+          const angle = (360 / numStars) * i - 90;
+          const rad = angle * Math.PI / 180;
+          const sx = Math.round(orbitR * Math.cos(rad));
+          const sy = Math.round(orbitR * Math.sin(rad));
+          const starSize = Math.max(7, Math.round(size * 0.22));
+          starEls.push(
+            <div key={i} style={{
+              position:"absolute",
+              top:"50%", left:"50%",
+              width:starSize, height:starSize,
+              marginTop:-starSize/2, marginLeft:-starSize/2,
+              transform:`translate(${sx}px,${sy}px)`,
+              fontSize:starSize, lineHeight:1,
+              animation:`starGlow ${1.6 + i*0.18}s ease-in-out infinite`,
+              zIndex:2, pointerEvents:"none", userSelect:"none"
+            }}>⭐</div>
+          );
+        }
+      }
       return (
-        <div style={{ position:"relative", flexShrink:0, width:size, height:size }}>
-          <div style={{ width:size, height:size, borderRadius:"50%",
+        <div style={{ position:"relative", flexShrink:0, width:size + (numStars>0?size*0.6:0), height:size + (numStars>0?size*0.6:0),
+          display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {starEls}
+          <div style={{ width:size, height:size, borderRadius:"50%", flexShrink:0,
             background:r.ringBg, padding:pad,
             boxShadow:`0 0 ${Math.round(size*0.35)}px ${r.glow}` }}>
             <div style={{ width:"100%", height:"100%", borderRadius:"50%",
@@ -2740,7 +2771,7 @@
       );
     }
 
-    function NightRecapModal({ games, favTeams, favPlayers, date, onClose, showAll, votes }) {
+    function NightRecapModal({ games, favTeams, favPlayers, date, onClose, showAll, votes, notice }) {
       const isMobile = useWindowWidth() < 600;
       const favTeamAbbrs = new Set(favTeams.map(t => t.abbreviation));
       const favPlayerTeamAbbrs = new Set(favPlayers.map(p => p.team?.abbreviation).filter(Boolean));
@@ -2873,6 +2904,14 @@
               <div style={{display:"flex",gap:5,alignItems:"center"}}>{recapGames.map((_,i)=>(<div key={i} style={{width:i===gameIdx?22:8,height:7,borderRadius:4,background:i<gameIdx?"#f59e0b":i===gameIdx?"linear-gradient(90deg,#f59e0b,#fde68a)":"rgba(255,255,255,0.14)",transition:"all 0.3s"}}/>))}</div>
               <button onClick={onClose} style={{background:"rgba(255,255,255,0.09)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:9,padding:"5px 11px",color:"rgba(255,255,255,0.65)",fontWeight:700,fontSize:13,transition:"all 0.15s"}}>✕</button>
             </div>
+            {notice && (
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:isMobile?"10px 14px":"11px 24px",
+                background:"linear-gradient(90deg,rgba(245,158,11,0.13),rgba(245,158,11,0.07))",
+                borderBottom:"1px solid rgba(245,158,11,0.2)"}}>
+                <span style={{fontSize:16,flexShrink:0}}>🕐</span>
+                <span style={{fontSize:isMobile?11:12,color:"rgba(255,200,80,0.92)",fontWeight:500,lineHeight:1.45}}>{notice}</span>
+              </div>
+            )}
             <div style={{padding:isMobile?"18px 14px":"26px 30px",minHeight:340}}>
               {(phase === "loading" || !curGame) && (<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:280}}><Spinner/></div>)}
               {phase === "intro" && curGame && (<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:280,gap:18,animation:"recapIntroText 0.65s ease both"}}><div style={{fontSize:52,fontWeight:900,color:"white",letterSpacing:"0.1em"}}>NIGHT RECAP</div></div>)}
@@ -3359,15 +3398,46 @@
         return () => { cancelled = true; };
       }, [selected]);
 
-      // Auto-open All NBA Recap when arriving from the landing page CatchUp button
       const games = gameCache[selected];
+
+      // Auto-open All NBA Recap when arriving from the landing page CatchUp button.
+      // If last night's games are still in progress (IL time past midnight but US games running),
+      // fall back to the night before (DATES[2]) and show a notice banner.
+      const [autoRecapNotice, setAutoRecapNotice] = useState(false);
+      const [altRecapDate,    setAltRecapDate]    = useState(null); // non-null when we redirect to prev night
+
+      // Load the fallback date's games as soon as we decide to use them
+      useEffect(() => {
+        if (!altRecapDate) return;
+        if (gameCache[altRecapDate] !== undefined) return;
+        loadDate(altRecapDate);
+      }, [altRecapDate]);
+
+      // Decide which night to open once yesterday's games have loaded
       useEffect(() => {
         if (!autoOpenAllRecap) return;
         if (loading) return;
-        if (!games || !games.some(g => g.status === "Final")) return;
-        setShowAllRecap(true);
-        if (onAutoRecapOpened) onAutoRecapOpened();
+        if (!games) return;
+        const allFinal = games.length > 0 && games.every(g => g.status === "Final");
+        if (allFinal) {
+          // All last night's games are done — open normally
+          setShowAllRecap(true);
+          if (onAutoRecapOpened) onAutoRecapOpened();
+        } else {
+          // Some games still playing — redirect to the night before with a notice
+          setAutoRecapNotice(true);
+          setAltRecapDate(DATES[2]);
+          if (onAutoRecapOpened) onAutoRecapOpened();
+        }
       }, [autoOpenAllRecap, loading, games]);
+
+      // Open the recap once the fallback night's games are ready
+      const altGames = altRecapDate ? gameCache[altRecapDate] : null;
+      useEffect(() => {
+        if (!autoRecapNotice || !altGames) return;
+        if (!altGames.some(g => g.status === "Final")) return;
+        setShowAllRecap(true);
+      }, [autoRecapNotice, altGames]);
 
       return (
         <>
@@ -3524,13 +3594,16 @@
           )}
           {showAllRecap && (
             <NightRecapModal
-              games={games ?? []}
+              games={(altRecapDate ? altGames : games) ?? []}
               favTeams={favTeams}
               favPlayers={favPlayers}
-              date={selected}
+              date={altRecapDate ?? selected}
               votes={votes ?? {}}
-              onClose={() => setShowAllRecap(false)}
+              onClose={() => { setShowAllRecap(false); setAutoRecapNotice(false); setAltRecapDate(null); }}
               showAll={true}
+              notice={autoRecapNotice
+                ? "You're watching the previous night's recap — last night's games are still being played. Come back later for the updated recap."
+                : null}
             />
           )}
         </>
@@ -4340,7 +4413,7 @@
     }
 
     // ── Stakes View ───────────────────────────────────────────────────────────────
-    function StakesView({ gameCache, loadDate, currentUser, standings, votes, loadingVotes, leaderboard }) {
+    function StakesView({ gameCache, loadDate, currentUser, setCurrentUser, standings, votes, loadingVotes, leaderboard }) {
       const isMobile = useWindowWidth() < 600;
       const [tab,          setTab]          = useState("vote");
       const [submitting,   setSubmitting]   = useState(null); // gameId being submitted
@@ -5994,6 +6067,7 @@
                 {card.anim === "catchup" && <LandingBallAnim />}
                 {card.anim === "games"   && <LandingScoreAnim />}
                 {card.anim === "stakes"  && <LandingDiceAnim />}
+                {card.anim === "bets"    && <LandingBetsAnim />}
               </>
             )}
           </div>
@@ -6030,7 +6104,77 @@
       );
     }
 
-    /* Main landing page */
+    /* Gold coin SVG icon */
+    const CoinIcon = ({size=15}) => (
+      <span style={{
+        display:"inline-flex", alignItems:"center", justifyContent:"center",
+        width:size, height:size, borderRadius:"50%", flexShrink:0,
+        background:"radial-gradient(circle at 35% 35%, #fde68a, #f59e0b 52%, #b45309)",
+        boxShadow:`0 1px 4px rgba(180,83,9,0.55), inset 0 1px 0 rgba(253,230,138,0.6)`,
+        border:"1.5px solid #d97706",
+        fontSize:Math.round(size*0.48), fontWeight:900, color:"#78350f", lineHeight:1,
+        letterSpacing:"-0.02em", userSelect:"none"
+      }}>¢</span>
+    );
+
+    /* Player Bets animation for landing card */
+    function LandingBetsAnim() {
+      const [tick, setTick] = React.useState(0);
+      const [pulse, setPulse] = React.useState(false);
+      useEffect(() => {
+        const id = setInterval(() => { setTick(t => t+1); setPulse(true); setTimeout(() => setPulse(false), 400); }, 2400);
+        return () => clearInterval(id);
+      }, []);
+      const players = [
+        { name:"LeBron James", team:"LAL", pts:26, reb:8, ast:10 },
+        { name:"Luka Doncic",  team:"DAL", pts:34, reb:9, ast:10 },
+        { name:"Giannis A.",   team:"MIL", pts:30, reb:13,ast:7  },
+      ];
+      const p = players[tick % players.length];
+      const preds = [
+        { l:"PTS", pred: p.pts - 2 + Math.round(Math.random()*4), actual: p.pts, c:"#f59e0b" },
+        { l:"REB", pred: p.reb - 1 + Math.round(Math.random()*2), actual: p.reb, c:"#60a5fa" },
+        { l:"AST", pred: p.ast - 2 + Math.round(Math.random()*4), actual: p.ast, c:"#34d399" },
+      ];
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:"100%", alignItems:"center" }}>
+          {/* Player card */}
+          <div style={{ width:170, background:"rgba(0,0,0,0.35)", borderRadius:12,
+            border:"1px solid rgba(168,85,247,0.3)", padding:"8px 12px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+              <img src={`https://cdn.nba.com/logos/nba/${({LAL:"1610612747",DAL:"1610612742",MIL:"1610612749"})[p.team]||"1610612747"}/primary/L/logo.svg`}
+                width={22} height={22} style={{ borderRadius:4, objectFit:"contain" }}
+                onError={e=>{e.target.style.display="none"}}/>
+              <span style={{ fontSize:11, fontWeight:800, color:"white" }}>{p.name}</span>
+            </div>
+            {preds.map((s,i) => (
+              <div key={s.l} style={{ marginBottom:5 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.5)", fontWeight:700 }}>{s.l} bet: <span style={{ color:s.c }}>{s.pred}</span></span>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>actual: {s.actual}</span>
+                </div>
+                <div style={{ height:4, borderRadius:4, background:"rgba(255,255,255,0.08)" }}>
+                  <div style={{ height:"100%", borderRadius:4, background:s.c,
+                    width:`${Math.min(100, (s.pred / (s.actual * 1.5)) * 100)}%`,
+                    transition:"width 0.6s ease", boxShadow:`0 0 6px ${s.c}88` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Payout pulse */}
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11, fontWeight:900,
+              color: pulse ? "#a3e635" : "#fde68a",
+              transition:"color 0.3s",
+              textShadow: pulse ? "0 0 12px #a3e635" : "0 0 8px rgba(253,230,138,0.5)" }}>
+              🎯 {pulse ? "+20 coins!" : "Predict stats"}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+        /* Main landing page */
     function LandingPage({ onSelect }) {
       const isMobile = useWindowWidth() < 600;
       const [exiting, setExiting] = React.useState(false);
@@ -6064,6 +6208,13 @@
           color:"#34d399", glow:"rgba(52,211,153,0.45)", glowBlob:"rgba(52,211,153,0.1)", glowBlobBright:"rgba(52,211,153,0.3)",
           border:"rgba(52,211,153,0.55)", borderDim:"rgba(52,211,153,0.2)",
           bg:"linear-gradient(155deg,rgba(2,20,14,0.96) 0%,rgba(4,20,36,0.97) 100%)" },
+        { id:"bets", anim:"bets",
+          title:"Player Bets", subtitle:"Predict & Win",
+          desc:"Predict a player's Points, Rebounds & Assists for their next game — get all three right and earn big coin rewards",
+          icon:"🎯", btnLabel:"Place a Bet",
+          color:"#a78bfa", glow:"rgba(167,139,250,0.45)", glowBlob:"rgba(167,139,250,0.1)", glowBlobBright:"rgba(167,139,250,0.3)",
+          border:"rgba(167,139,250,0.55)", borderDim:"rgba(167,139,250,0.2)",
+          bg:"linear-gradient(155deg,rgba(14,4,36,0.96) 0%,rgba(22,8,52,0.97) 100%)" },
       ];
 
       return (
@@ -6081,12 +6232,10 @@
             animation:"landTitleIn 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.08s both" }}>
             {/* Shining logo */}
             <div style={{ fontSize: isMobile ? 30 : 58, fontWeight:900, letterSpacing:"-0.04em",
-              background:"linear-gradient(90deg,#f59e0b 0%,#ffffff 30%,#60a5fa 50%,#ffffff 70%,#f59e0b 100%)",
-              backgroundSize:"300% auto",
+              background:"linear-gradient(90deg,#d97706 0%,#fde68a 35%,#f59e0b 60%,#fde68a 80%,#d97706 100%)",
               WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
-              animation:"landShine 4.5s linear infinite",
               marginBottom: isMobile ? 5 : 10, lineHeight:1.1,
-              filter:"drop-shadow(0 0 30px rgba(245,158,11,0.3))" }}>
+              filter:"drop-shadow(0 0 30px rgba(245,158,11,0.45))" }}>
               🏀 NBA CatchUp
             </div>
             <div style={{ fontSize: isMobile ? 11 : 16, color:"rgba(255,255,255,0.4)",
@@ -6118,6 +6267,647 @@
               Skip to Games →
             </button>
           </div>
+        </div>
+      );
+    }
+
+    // ── Shop View ─────────────────────────────────────────────────────────────────
+    function ShopView({ currentUser, setCurrentUser }) {
+      const isMobile = useWindowWidth() < 600;
+      const [buying, setBuying] = useState(false);
+      const [msg, setMsg] = useState(null);
+
+      const coins = currentUser?.coins ?? 0;
+      const stars = currentUser?.stars ?? 0;
+      const canBuy = coins >= 100 && stars < 10;
+
+      const buyStar = async () => {
+        if (!currentUser || !fbDb || !canBuy || buying) return;
+        setBuying(true); setMsg(null);
+        try {
+          await fbDb.runTransaction(async tx => {
+            const ref = fbDb.collection("users").doc(currentUser.uid);
+            const snap = await tx.get(ref);
+            const data = snap.data();
+            if ((data.coins ?? 0) < 100) throw new Error("Not enough coins");
+            if ((data.stars ?? 0) >= 10) throw new Error("Max stars reached");
+            tx.update(ref, {
+              coins: firebase.firestore.FieldValue.increment(-100),
+              stars: firebase.firestore.FieldValue.increment(1),
+            });
+          });
+          setCurrentUser(u => u ? { ...u, coins: (u.coins ?? 0) - 100, stars: Math.min(10, (u.stars ?? 0) + 1) } : u);
+          setMsg({ type:"ok", text:"⭐ Star added to your profile!" });
+        } catch(e) {
+          setMsg({ type:"err", text: e.message === "Not enough coins" ? "You need 100 coins to buy a star." : e.message === "Max stars reached" ? "You already have the maximum 10 stars!" : "Something went wrong, try again." });
+        }
+        setBuying(false);
+      };
+
+      return (
+        <div style={{ maxWidth:560, margin:"0 auto", padding:isMobile?"16px 14px":"28px 24px" }}>
+          <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:28 }}>🛒</span>
+            <div>
+              <div style={{ fontSize:isMobile?18:22, fontWeight:900, color:"white" }}>Shop</div>
+              <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginTop:2 }}>Spend your coins to customize your profile</div>
+            </div>
+          </div>
+
+          {/* Coin balance */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px",
+            background:"rgba(8,12,28,0.92)", border:"1.5px solid rgba(234,179,8,0.4)", borderRadius:14, marginBottom:20 }}>
+            <CoinIcon size={40} />
+            <div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontWeight:600 }}>YOUR BALANCE</div>
+              <div style={{ fontSize:28, fontWeight:900, color:"#fde68a" }}>{coins} <span style={{ fontSize:14, color:"rgba(255,255,255,0.35)" }}>coins</span></div>
+            </div>
+          </div>
+
+          {/* Stars display */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px",
+            background:"rgba(8,12,28,0.92)", border:"1.5px solid rgba(99,102,241,0.35)", borderRadius:14, marginBottom:20 }}>
+            <span style={{ fontSize:32 }}>⭐</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", fontWeight:600 }}>YOUR STARS</div>
+              <div style={{ fontSize:22, fontWeight:900, color:"#c4b5fd" }}>{stars} <span style={{ fontSize:13, color:"rgba(255,255,255,0.35)" }}>/ 10</span></div>
+              <div style={{ display:"flex", gap:4, marginTop:6 }}>
+                {Array.from({length:10}, (_,i) => (
+                  <span key={i} style={{ fontSize:16, opacity: i < stars ? 1 : 0.18 }}>⭐</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Buy star card */}
+          <div style={{ padding:"18px 18px", background:"rgba(8,12,28,0.92)",
+            border:`1.5px solid ${canBuy ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.1)"}`,
+            borderRadius:16, marginBottom:16 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"white", display:"flex", alignItems:"center", gap:6 }}>
+                  ⭐ Buy a Star
+                </div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginTop:3 }}>
+                  Shown around your avatar for everyone to see. Max 10 stars.
+                </div>
+                <div style={{ fontSize:13, fontWeight:700, color:"#fde68a", marginTop:6 }}>
+                  <span style={{display:"flex",alignItems:"center",gap:5}}><CoinIcon size={14}/> 100 coins each</span>
+                </div>
+              </div>
+              <button onClick={buyStar} disabled={!canBuy || buying || !currentUser}
+                style={{ padding:"10px 22px", borderRadius:12, fontWeight:800, fontSize:14,
+                  background: canBuy && currentUser ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(8,12,28,0.8)",
+                  color: canBuy && currentUser ? "white" : "rgba(255,255,255,0.3)",
+                  border:"none", cursor: canBuy && currentUser ? "pointer" : "not-allowed",
+                  boxShadow: canBuy && currentUser ? "0 2px 12px rgba(245,158,11,0.4)" : "none",
+                  transition:"all 0.15s" }}>
+                {buying ? "Buying..." : stars >= 10 ? "Max Reached" : !currentUser ? "Sign in" : "Buy"}
+              </button>
+            </div>
+            {msg && (
+              <div style={{ marginTop:12, padding:"8px 12px", borderRadius:8, fontSize:13, fontWeight:600,
+                background: msg.type==="ok" ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)",
+                color: msg.type==="ok" ? "#4ade80" : "#f87171",
+                border:`1px solid ${msg.type==="ok" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}` }}>
+                {msg.text}
+              </div>
+            )}
+          </div>
+
+          {/* How to earn coins */}
+          <div style={{ padding:"16px 18px", background:"rgba(8,12,28,0.92)",
+            border:"1px solid rgba(255,255,255,0.14)", borderRadius:14 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:10 }}>💡 How to Earn Coins</div>
+            {[
+              { icon:"✅", text:"Correct game winner pick", reward:"+1 coin" },
+              { icon:"🎯", text:"Bet score 8/10 (correct pick, spread off by ≤6)", reward:"+1 bonus" },
+              { icon:"⚡", text:"Bet score 9/10 (off by ≤3)", reward:"+2 bonus" },
+              { icon:"💎", text:"Perfect score 10/10 (exact margin)", reward:"+4 bonus" },
+              { icon:"👍", text:"Upvote someone's exact player stat prediction", reward:"+5 coins" },
+              { icon:"🆕", text:"New account bonus", reward:"10 coins" },
+            ].map((item, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0",
+                borderBottom: i < 5 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>{item.icon}</span>
+                <span style={{ fontSize:13, color:"rgba(255,255,255,0.7)", flex:1 }}>{item.text}</span>
+                <span style={{ fontSize:13, fontWeight:700, color:"#fde68a", flexShrink:0 }}>{item.reward}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Player Bets View ───────────────────────────────────────────────────────────
+    function PlayerBetsView({ currentUser, setCurrentUser, gameCache, loadDate }) {
+      const isMobile = useWindowWidth() < 600;
+      const [subTab, setSubTab] = useState("feed");
+      // Place Bet states
+      const [playerSearch, setPlayerSearch] = useState("");
+      const [searchResults, setSearchResults] = useState([]);
+      const [searching, setSearching] = useState(false);
+      const [selectedPlayer, setSelectedPlayer] = useState(null);
+      const [nextGame, setNextGame] = useState(null);
+      const [loadingGame, setLoadingGame] = useState(false);
+      const [predPts, setPredPts] = useState("");
+      const [predReb, setPredReb] = useState("");
+      const [predAst, setPredAst] = useState("");
+      const [placing, setPlacing] = useState(false);
+      const [placeMsg, setPlaceMsg] = useState(null);
+      // Feed states
+      const [bets, setBets] = useState([]);
+      const [loadingBets, setLoadingBets] = useState(true);
+      const [feedFilter, setFeedFilter] = useState("all"); // all | friends | player
+      const [feedSearch, setFeedSearch] = useState("");
+      const [upvoting, setUpvoting] = useState(null);
+      const [myUpvotes, setMyUpvotes] = useState({ date:"", count:0 });
+
+      // Listen to playerBets collection
+      useEffect(() => {
+        if (!fbDb) { setLoadingBets(false); return; }
+        const unsub = fbDb.collection("playerBets").orderBy("placedAt","desc").limit(200)
+          .onSnapshot(snap => {
+            setBets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setLoadingBets(false);
+          }, () => setLoadingBets(false));
+        return () => unsub();
+      }, []);
+
+      // Load daily upvote state from user doc
+      useEffect(() => {
+        if (!currentUser) return;
+        const today = new Date().toISOString().slice(0,10);
+        setMyUpvotes({
+          date: currentUser.dailyUpvoteDate ?? "",
+          count: currentUser.dailyUpvoteDate === today ? (currentUser.dailyUpvoteCount ?? 0) : 0
+        });
+      }, [currentUser?.uid]);
+
+      // Search players
+      useEffect(() => {
+        if (!playerSearch.trim() || playerSearch.length < 2) { setSearchResults([]); return; }
+        const t = setTimeout(async () => {
+          setSearching(true);
+          try {
+            const r = await fetch(`${API_V1}/players?search=${encodeURIComponent(playerSearch)}&per_page=8`, { headers:{"Authorization": API_KEY} });
+            const j = await r.json();
+            setSearchResults((j.data ?? []).filter(p => p.team?.abbreviation));
+          } catch { setSearchResults([]); }
+          setSearching(false);
+        }, 400);
+        return () => clearTimeout(t);
+      }, [playerSearch]);
+
+      // Find player's next game
+      const findNextGame = async (player) => {
+        setLoadingGame(true); setNextGame(null);
+        const abbr = player.team?.abbreviation;
+        if (!abbr) { setLoadingGame(false); return; }
+        for (const d of FUTURE_DATES) {
+          if (gameCache[d] === undefined) await loadDate(d);
+          const gs = gameCache[d] ?? [];
+          const g = gs.find(g => g.home.abbreviation === abbr || g.visitor.abbreviation === abbr);
+          if (g) {
+            // Check 1hr deadline
+            const startMs = (() => {
+              if (g.status && /^\d{4}-\d{2}-\d{2}T\d/.test(g.status)) return new Date(g.status).getTime();
+              const fmtGt = fmtGameTime(g.status);
+              if (!fmtGt) return null;
+              let hour = parseInt(fmtGt.time.split(":")[0]);
+              const min = parseInt(fmtGt.time.split(":")[1] ?? "0");
+              if (fmtGt.ampm.toUpperCase()==="PM" && hour!==12) hour+=12;
+              if (fmtGt.ampm.toUpperCase()==="AM" && hour===12) hour=0;
+              const ianaZone = ({ET:"America/New_York",CT:"America/Chicago",MT:"America/Denver",PT:"America/Los_Angeles"})[fmtGt.tz]??"America/New_York";
+              const probe = new Date(`${d}T12:00:00Z`);
+              const localHour = parseInt(new Intl.DateTimeFormat("en-US",{timeZone:ianaZone,hour:"numeric",hour12:false}).format(probe));
+              const offsetH = 12 - localHour;
+              return Date.UTC(parseInt(d.slice(0,4)),parseInt(d.slice(5,7))-1,parseInt(d.slice(8,10)),hour+offsetH,min,0);
+            })();
+            setNextGame({ game: g, date: d, startMs, abbr });
+            setLoadingGame(false);
+            return;
+          }
+        }
+        setLoadingGame(false);
+        setNextGame(null);
+      };
+
+      const selectPlayer = (p) => {
+        setSelectedPlayer(p);
+        setSearchResults([]);
+        setPlayerSearch(p.first_name + " " + p.last_name);
+        findNextGame(p);
+      };
+
+      const canPlace = () => {
+        if (!currentUser || !nextGame || !selectedPlayer) return false;
+        if ((currentUser.coins ?? 0) < 10) return false;
+        if (predPts === "" || predReb === "" || predAst === "") return false;
+        if (nextGame.startMs && Date.now() > nextGame.startMs - 3600000) return false;
+        return true;
+      };
+
+      const placeBet = async () => {
+        if (!canPlace() || placing) return;
+        setPlacing(true); setPlaceMsg(null);
+        try {
+          await fbDb.runTransaction(async tx => {
+            const ref = fbDb.collection("users").doc(currentUser.uid);
+            const snap = await tx.get(ref);
+            if ((snap.data().coins ?? 0) < 10) throw new Error("Not enough coins");
+            tx.update(ref, { coins: firebase.firestore.FieldValue.increment(-10) });
+          });
+          const betDoc = {
+            userId: currentUser.uid,
+            username: currentUser.username,
+            avatar: currentUser.avatar ?? AVATARS[0].id,
+            playerId: selectedPlayer.id,
+            playerFirstName: selectedPlayer.first_name,
+            playerLastName: selectedPlayer.last_name,
+            playerTeam: selectedPlayer.team?.abbreviation ?? "",
+            gameId: String(nextGame.game.id),
+            gameDate: nextGame.date,
+            predictedPts: Number(predPts),
+            predictedReb: Number(predReb),
+            predictedAst: Number(predAst),
+            result: "pending",
+            payout: 0,
+            upvoters: [],
+            placedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          };
+          await fbDb.collection("playerBets").add(betDoc);
+          setCurrentUser(u => u ? { ...u, coins: (u.coins ?? 0) - 10 } : u);
+          setPlaceMsg({ type:"ok", text:"🎯 Bet placed! -10 coins. Good luck!" });
+          setPredPts(""); setPredReb(""); setPredAst("");
+          setSelectedPlayer(null); setPlayerSearch(""); setNextGame(null);
+          setSubTab("feed");
+        } catch(e) {
+          setPlaceMsg({ type:"err", text: e.message === "Not enough coins" ? "You need 10 coins to place a bet." : "Failed to place bet. Try again." });
+        }
+        setPlacing(false);
+      };
+
+      const upvote = async (bet) => {
+        if (!currentUser || !fbDb || upvoting) return;
+        const today = new Date().toISOString().slice(0,10);
+        const upvoteCount = myUpvotes.date === today ? myUpvotes.count : 0;
+        if (upvoteCount >= 3) { alert("You've used all 3 upvotes for today."); return; }
+        if ((bet.upvoters ?? []).includes(currentUser.uid)) { alert("You already upvoted this bet."); return; }
+        if (bet.userId === currentUser.uid) { alert("You can't upvote your own bet."); return; }
+        // Check 1hr deadline for the bet's game
+        if (bet.startMs && Date.now() > bet.startMs - 3600000) { alert("Voting deadline passed for this game."); return; }
+        setUpvoting(bet.id);
+        try {
+          await fbDb.runTransaction(async tx => {
+            const betRef = fbDb.collection("playerBets").doc(bet.id);
+            const userRef = fbDb.collection("users").doc(currentUser.uid);
+            const betSnap = await tx.get(betRef);
+            const userSnap = await tx.get(userRef);
+            const bData = betSnap.data();
+            const uData = userSnap.data();
+            if ((bData.upvoters ?? []).includes(currentUser.uid)) throw new Error("already");
+            const todayUpvotes = uData.dailyUpvoteDate === today ? (uData.dailyUpvoteCount ?? 0) : 0;
+            if (todayUpvotes >= 3) throw new Error("limit");
+            tx.update(betRef, { upvoters: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+            tx.update(userRef, { dailyUpvoteDate: today, dailyUpvoteCount: todayUpvotes + 1 });
+            // If bet result is exact → upvoter gets +5 coins
+            if (bData.result === "exact") {
+              tx.update(userRef, { coins: firebase.firestore.FieldValue.increment(5) });
+            }
+          });
+          setMyUpvotes({ date: today, count: upvoteCount + 1 });
+          if (bet.result === "exact") {
+            setCurrentUser(u => u ? { ...u, coins: (u.coins ?? 0) + 5, dailyUpvoteDate: today, dailyUpvoteCount: upvoteCount + 1 } : u);
+          } else {
+            setCurrentUser(u => u ? { ...u, dailyUpvoteDate: today, dailyUpvoteCount: upvoteCount + 1 } : u);
+          }
+        } catch(e) { if (e.message !== "already" && e.message !== "limit") console.error("Upvote err:", e); }
+        setUpvoting(null);
+      };
+
+      const today = new Date().toISOString().slice(0,10);
+      const upvotesLeft = myUpvotes.date === today ? 3 - myUpvotes.count : 3;
+
+      const filteredBets = bets.filter(b => {
+        if (feedFilter === "friends" && currentUser) {
+          const friends = currentUser.friends ?? [];
+          if (!friends.includes(b.userId) && b.userId !== currentUser.uid) return false;
+        }
+        if (feedSearch.trim()) {
+          const q = feedSearch.trim().toLowerCase();
+          const matchPlayer = `${b.playerFirstName} ${b.playerLastName}`.toLowerCase().includes(q);
+          const matchUser = (b.username ?? "").toLowerCase().includes(q);
+          if (!matchPlayer && !matchUser) return false;
+        }
+        return true;
+      });
+
+      const resultColor = r => r==="exact"?"#4ade80":r==="within1"?"#a3e635":r==="within3"?"#fbbf24":r==="within6"?"#fb923c":r==="within8"?"#f87171":r==="miss"?"#ef4444":"rgba(255,255,255,0.35)";
+      const resultLabel = r => r==="exact"?"🎯 Exact!":r==="within1"?"🟢 ±1":r==="within3"?"🟡 ±3":r==="within6"?"🟠 Close":r==="within8"?"🔴 Far":r==="miss"?"❌ Miss":"⏳ Pending";
+
+      return (
+        <div style={{ maxWidth:700, margin:"0 auto", padding:isMobile?"12px 10px":"24px 20px" }}>
+          {/* SubTab bar */}
+          <div style={{ display:"flex", gap:8, marginBottom:18 }}>
+            {[{id:"feed",label:"📋 Bet Feed"},{id:"place",label:"🎯 Place Bet"}].map(t => (
+              <button key={t.id} onClick={() => setSubTab(t.id)}
+                style={{ padding:"8px 18px", borderRadius:20, fontWeight:700, fontSize:isMobile?12:13, flexShrink:0,
+                  background: subTab===t.id ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(8,12,28,0.85)",
+                  color: subTab===t.id ? "white" : "rgba(255,255,255,0.65)",
+                  border: subTab===t.id ? "none" : "1px solid rgba(255,255,255,0.13)",
+                  boxShadow: subTab===t.id ? "0 2px 10px rgba(245,158,11,0.4)" : "none",
+                  transition:"all 0.15s", cursor:"pointer" }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Place Bet Tab ── */}
+          {subTab === "place" && (
+            <div>
+              {!currentUser && (
+                <div style={{ padding:"24px 20px", textAlign:"center", background:"rgba(8,12,28,0.9)",
+                  border:"1px solid rgba(255,255,255,0.14)", borderRadius:14, color:"rgba(255,255,255,0.65)", fontSize:14 }}>
+                  🔐 Sign in to place player bets.
+                </div>
+              )}
+              {currentUser && (
+                <div>
+                  {/* Cost info banner */}
+                  <div style={{ marginBottom:16, padding:"13px 16px",
+                    background:"linear-gradient(135deg,rgba(8,12,28,0.95),rgba(20,14,4,0.95))",
+                    border:"1.5px solid rgba(245,158,11,0.45)", borderRadius:12,
+                    fontSize:13, color:"white", display:"flex", alignItems:"center", gap:10 }}>
+                    <CoinIcon size={22}/>
+                    <div>
+                      <span style={{fontWeight:800, color:"#fde68a"}}>10 coins</span> to place a bet &nbsp;·&nbsp; Your balance: <span style={{fontWeight:800, color:"#fde68a"}}>{currentUser.coins ?? 0} coins</span>
+                    </div>
+                  </div>
+
+                  {/* Payout table — shown ALWAYS at top so user knows what they're betting */}
+                  <div style={{ marginBottom:18, padding:"14px 16px",
+                    background:"rgba(8,12,28,0.92)", border:"1.5px solid rgba(167,139,250,0.35)", borderRadius:12 }}>
+                    <div style={{ fontSize:11, fontWeight:800, letterSpacing:"0.08em", color:"#c4b5fd", marginBottom:10, textTransform:"uppercase" }}>
+                      Predict Points, Rebounds & Assists for one player's next game
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"5px 16px" }}>
+                      {[
+                        ["🎯","All 3 exact (PTS + REB + AST spot on)","30 coins","#4ade80"],
+                        ["🟢","All 3 within ±1 of actual","20 coins","#a3e635"],
+                        ["🟡","All 3 within ±3 of actual","15 coins","#fbbf24"],
+                        ["🟠","PTS within ±6, REB & AST within ±4","10 coins","#fb923c"],
+                        ["🔴","PTS within ±8, REB & AST within ±4","5 coins","#f87171"],
+                        ["❌","Any stat outside the above ranges","0 coins","#ef4444"],
+                      ].map(([icon,desc,reward,col]) => (
+                        <React.Fragment key={desc}>
+                          <div style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 0",
+                            borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:12, color:"rgba(255,255,255,0.8)" }}>
+                            <span style={{flexShrink:0, fontSize:14}}>{icon}</span>
+                            <span>{desc}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end",
+                            padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.06)",
+                            fontWeight:800, fontSize:13, color:col, whiteSpace:"nowrap" }}>
+                            {reward}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Player search */}
+                  <div style={{ marginBottom:6 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:6 }}>
+                      1. Choose a player
+                    </div>
+                    <div style={{ position:"relative" }}>
+                      <input value={playerSearch} onChange={e => { setPlayerSearch(e.target.value); setSelectedPlayer(null); setNextGame(null); }}
+                        placeholder="Search by name (e.g. LeBron James)…"
+                        style={{ width:"100%", padding:"12px 16px", borderRadius:10,
+                          border:"2px solid rgba(167,139,250,0.4)",
+                          background:"rgba(167,139,250,0.07)", color:"white", fontSize:14, outline:"none",
+                          boxSizing:"border-box", transition:"border-color 0.2s" }}
+                        onFocus={e => e.target.style.borderColor="rgba(167,139,250,0.8)"}
+                        onBlur={e => e.target.style.borderColor="rgba(167,139,250,0.4)"} />
+                      {searching && (
+                        <span style={{ position:"absolute", right:14, top:13, fontSize:12,
+                          color:"#a78bfa", fontWeight:600 }}>Searching…</span>
+                      )}
+                      {searchResults.length > 0 && (
+                        <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, zIndex:30,
+                          background:"rgba(8,12,28,0.98)", border:"1.5px solid rgba(167,139,250,0.45)", borderRadius:12,
+                          maxHeight:240, overflowY:"auto",
+                          boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
+                          {searchResults.map(p => (
+                            <div key={p.id} onClick={() => selectPlayer(p)}
+                              style={{ padding:"11px 14px", cursor:"pointer", fontSize:13, color:"white",
+                                borderBottom:"1px solid rgba(255,255,255,0.07)",
+                                display:"flex", alignItems:"center", gap:10,
+                                transition:"background 0.12s" }}
+                              onMouseEnter={e => e.currentTarget.style.background="rgba(167,139,250,0.18)"}
+                              onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                              <TeamLogo abbr={p.team?.abbreviation} size={22} />
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontWeight:700 }}>{p.first_name} {p.last_name}</div>
+                                <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:1 }}>{p.team?.full_name ?? p.team?.abbreviation}</div>
+                              </div>
+                              <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)", flexShrink:0 }}>{p.position}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Next game info */}
+                  <div style={{ minHeight:16, marginBottom:14 }}>
+                    {loadingGame && (
+                      <div style={{ fontSize:12, color:"#a78bfa", padding:"8px 0", fontWeight:600 }}>⏳ Finding next game…</div>
+                    )}
+                    {selectedPlayer && !loadingGame && nextGame && (
+                      <div style={{ padding:"12px 14px",
+                        background:"rgba(8,12,28,0.92)", border:"1.5px solid rgba(96,165,250,0.4)", borderRadius:10 }}>
+                        <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.08em", color:"#93c5fd", marginBottom:6, textTransform:"uppercase" }}>Next Game</div>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            <TeamLogo abbr={nextGame.game.home.abbreviation} size={22} />
+                            <span style={{ fontWeight:800, color:"white", fontSize:13 }}>{nextGame.game.home.abbreviation}</span>
+                            <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>vs</span>
+                            <TeamLogo abbr={nextGame.game.visitor.abbreviation} size={22} />
+                            <span style={{ fontWeight:800, color:"white", fontSize:13 }}>{nextGame.game.visitor.abbreviation}</span>
+                          </div>
+                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginLeft:"auto" }}>{nextGame.date} · {nextGame.game.status}</span>
+                        </div>
+                        {nextGame.startMs && Date.now() > nextGame.startMs - 3600000 && (
+                          <div style={{ marginTop:8, fontSize:12, color:"#f87171", fontWeight:700,
+                            background:"rgba(248,113,113,0.1)", borderRadius:6, padding:"5px 8px" }}>
+                            ⚠️ Betting window closed — less than 1 hour to tip-off
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {selectedPlayer && !loadingGame && !nextGame && (
+                      <div style={{ fontSize:13, color:"#f87171", padding:"8px 12px",
+                        background:"rgba(8,12,28,0.9)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:8, fontWeight:600 }}>
+                        No upcoming games found for this player in the next 6 days.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stat inputs */}
+                  {selectedPlayer && nextGame && !(nextGame.startMs && Date.now() > nextGame.startMs - 3600000) && (
+                    <div style={{ marginBottom:18 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:10 }}>
+                        2. Predict their stats
+                      </div>
+                      <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                        {[
+                          {label:"Points",abbr:"PTS",val:predPts,set:setPredPts,c:"#f59e0b",icon:"🏀"},
+                          {label:"Rebounds",abbr:"REB",val:predReb,set:setPredReb,c:"#60a5fa",icon:"💪"},
+                          {label:"Assists",abbr:"AST",val:predAst,set:setPredAst,c:"#34d399",icon:"🎯"},
+                        ].map(inp => (
+                          <div key={inp.abbr} style={{ flex:1, minWidth:90,
+                            background:"rgba(8,12,28,0.92)", border:`2px solid ${inp.val !== "" ? inp.c+"99" : "rgba(255,255,255,0.18)"}`,
+                            borderRadius:12, padding:"12px 10px", textAlign:"center", transition:"border-color 0.2s" }}>
+                            <div style={{ fontSize:11, color:inp.c, fontWeight:800, letterSpacing:"0.05em", marginBottom:2 }}>{inp.icon} {inp.label}</div>
+                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:8 }}>{inp.abbr}</div>
+                            <input type="number" min="0" max="99" value={inp.val} onChange={e => inp.set(e.target.value)}
+                              placeholder="?"
+                              style={{ width:"100%", padding:"8px 4px", borderRadius:8,
+                                border:`1.5px solid ${inp.val !== "" ? inp.c+"66" : "rgba(255,255,255,0.2)"}`,
+                                background: inp.val !== "" ? inp.c+"20" : "rgba(8,12,28,0.8)",
+                                color: inp.val !== "" ? inp.c : "rgba(255,255,255,0.7)",
+                                fontSize:24, fontWeight:900,
+                                outline:"none", textAlign:"center", boxSizing:"border-box",
+                                transition:"all 0.2s" }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {placeMsg && (
+                    <div style={{ marginBottom:14, padding:"11px 14px", borderRadius:10, fontSize:13, fontWeight:600,
+                      background: placeMsg.type==="ok" ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)",
+                      color: placeMsg.type==="ok" ? "#4ade80" : "#f87171",
+                      border:`1.5px solid ${placeMsg.type==="ok" ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}` }}>
+                      {placeMsg.text}
+                    </div>
+                  )}
+
+                  <button onClick={placeBet} disabled={!canPlace() || placing}
+                    style={{ width:"100%", padding:"15px", borderRadius:12, fontWeight:900, fontSize:15,
+                      background: canPlace() ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "rgba(8,12,28,0.85)",
+                      color: canPlace() ? "white" : "rgba(255,255,255,0.25)",
+                      border: canPlace() ? "none" : "1px solid rgba(255,255,255,0.1)",
+                      cursor: canPlace() ? "pointer" : "not-allowed",
+                      boxShadow: canPlace() ? "0 4px 20px rgba(124,58,237,0.5)" : "none",
+                      transition:"all 0.18s", letterSpacing:"0.02em" }}>
+                    {placing ? "Placing bet…" : canPlace() ? "🎯 Place Bet  ·  10 coins" : !selectedPlayer ? "Select a player first" : !nextGame ? "No upcoming game" : predPts===""||predReb===""||predAst==="" ? "Fill in PTS, REB & AST" : "Place Bet"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Feed Tab ── */}
+          {subTab === "feed" && (
+            <div>
+              {/* Filters */}
+              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+                {["all","friends"].map(f => (
+                  <button key={f} onClick={() => setFeedFilter(f)}
+                    style={{ padding:"6px 14px", borderRadius:16, fontSize:12, fontWeight:700, flexShrink:0,
+                      background: feedFilter===f ? "rgba(245,158,11,0.25)" : "rgba(8,12,28,0.85)",
+                      color: feedFilter===f ? "#fde68a" : "rgba(255,255,255,0.5)",
+                      border: feedFilter===f ? "1px solid rgba(245,158,11,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                      cursor:"pointer", transition:"all 0.15s" }}>
+                    {f==="all"?"All":"Friends"}
+                  </button>
+                ))}
+                <input value={feedSearch} onChange={e => setFeedSearch(e.target.value)}
+                  placeholder="Search by player or username…"
+                  style={{ flex:1, minWidth:120, padding:"6px 12px", borderRadius:10,
+                    border:"1px solid rgba(255,255,255,0.18)", background:"rgba(8,12,28,0.85)",
+                    color:"white", fontSize:12, outline:"none" }} />
+                {currentUser && (
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)", flexShrink:0 }}>
+                    {upvotesLeft} upvote{upvotesLeft!==1?"s":""} left today
+                  </span>
+                )}
+              </div>
+              {loadingBets && <div style={{ padding:"30px", textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13 }}>Loading bets…</div>}
+              {!loadingBets && filteredBets.length === 0 && (
+                <div style={{ padding:"30px", textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13 }}>
+                  No bets found. {subTab==="feed" && "Be the first to place a bet! 🎯"}
+                </div>
+              )}
+              {filteredBets.map(bet => {
+                const isMyBet = currentUser?.uid === bet.userId;
+                const alreadyUpvoted = (bet.upvoters ?? []).includes(currentUser?.uid);
+                const isPending = bet.result === "pending";
+                const rColor = resultColor(bet.result);
+                const statCols = ["#f59e0b","#60a5fa","#34d399"];
+                return (
+                  <div key={bet.id} style={{ marginBottom:12, padding:"14px 16px",
+                    background: isPending ? "rgba(8,12,28,0.88)" : `rgba(8,12,28,0.88)`,
+                    border:`1.5px solid ${isPending ? "rgba(255,255,255,0.16)" : rColor+"77"}`,
+                    borderRadius:14, transition:"all 0.15s" }}>
+                    {/* Header: user + date */}
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                      <UserAvatar avatarId={bet.avatar} size={28} />
+                      <span style={{ fontWeight:800, fontSize:13, color:"white" }}>{bet.username}</span>
+                      {isMyBet && <span style={{ fontSize:10, color:"#a78bfa", background:"rgba(167,139,250,0.15)",
+                        border:"1px solid rgba(167,139,250,0.3)", borderRadius:6, padding:"1px 6px", fontWeight:700 }}>You</span>}
+                      <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginLeft:"auto" }}>{bet.gameDate}</span>
+                    </div>
+                    {/* Player + stat boxes */}
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, flexWrap:"wrap" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                        <TeamLogo abbr={bet.playerTeam} size={22} />
+                        <span style={{ fontWeight:800, fontSize:14, color:"white" }}>{bet.playerFirstName} {bet.playerLastName}</span>
+                      </div>
+                      <div style={{ display:"flex", gap:7, marginLeft:"auto" }}>
+                        {[{l:"PTS",v:bet.predictedPts,c:statCols[0]},{l:"REB",v:bet.predictedReb,c:statCols[1]},{l:"AST",v:bet.predictedAst,c:statCols[2]}].map(s => (
+                          <div key={s.l} style={{ textAlign:"center", padding:"5px 10px",
+                            background:`${s.c}14`, border:`1px solid ${s.c}44`, borderRadius:9, minWidth:44 }}>
+                            <div style={{ fontSize:9, color:s.c, fontWeight:800, letterSpacing:"0.05em" }}>{s.l}</div>
+                            <div style={{ fontSize:16, fontWeight:900, color:"white", lineHeight:1.2 }}>{s.v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Result chip + upvote */}
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:12, fontWeight:800, color: rColor,
+                        background:`${rColor}18`, border:`1.5px solid ${rColor}55`,
+                        borderRadius:8, padding:"4px 11px", display:"inline-flex", alignItems:"center", gap:5 }}>
+                        {resultLabel(bet.result)}
+                        {!isPending && bet.payout > 0 && <span style={{opacity:0.8}}>· {bet.payout} coins</span>}
+                      </span>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto" }}>
+                        <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:600 }}>
+                          👍 {(bet.upvoters ?? []).length}
+                        </span>
+                        {currentUser && !isMyBet && isPending && (
+                          <button onClick={() => upvote(bet)} disabled={alreadyUpvoted || upvoting===bet.id || upvotesLeft<=0}
+                            style={{ padding:"5px 13px", borderRadius:8, fontSize:12, fontWeight:800, cursor: alreadyUpvoted||upvotesLeft<=0 ? "default" : "pointer",
+                              background: alreadyUpvoted ? "rgba(99,102,241,0.28)" : upvotesLeft>0 ? "rgba(99,102,241,0.22)" : "rgba(8,12,28,0.85)",
+                              color: alreadyUpvoted ? "#a5b4fc" : upvotesLeft>0 ? "#c4b5fd" : "rgba(255,255,255,0.2)",
+                              border:`1.5px solid ${alreadyUpvoted ? "rgba(99,102,241,0.5)" : upvotesLeft>0 ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.08)"}`,
+                              boxShadow: !alreadyUpvoted && upvotesLeft>0 ? "0 2px 8px rgba(99,102,241,0.25)" : "none",
+                              transition:"all 0.15s" }}>
+                            {upvoting===bet.id ? "…" : alreadyUpvoted ? "✓ Upvoted" : `👍 Upvote`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }
@@ -6281,6 +7071,65 @@
         }
       }, []);
 
+      // ── Coin-claiming: award coins for correct picks ─────────────────────────
+      useEffect(() => {
+        if (!currentUser || !fbDb || loadingVotes) return;
+        const uid = currentUser.uid;
+        const claimed = currentUser.claimedPickCoins ?? {};
+        const toAward = {};
+        Object.entries(gameCache).forEach(([date, games]) => {
+          (games ?? []).forEach(game => {
+            if (game.status !== "Final") return;
+            if (game.home.score == null || game.visitor.score == null) return;
+            const winner = game.home.score > game.visitor.score ? game.home.abbreviation : game.visitor.abbreviation;
+            const actualMargin = Math.abs(game.home.score - game.visitor.score);
+            const key = `${date}_${game.id}`;
+            const vote = (votes[key] ?? {})[uid];
+            if (!vote) return;
+            const claimKey = `${date}_${game.id}`;
+            if (claimed[claimKey]) return;  // already claimed
+            if (vote.teamAbbr !== winner) {
+              // wrong pick — mark as claimed (0 coins) so we don't re-check
+              toAward[claimKey] = 0;
+              return;
+            }
+            // Correct pick: base 1 coin
+            let coins = 1;
+            // Bonus for spread score ≥ 8
+            if (vote.spread != null && actualMargin > 0) {
+              const spreadErr = Math.abs(vote.spread - actualMargin);
+              const betScore = spreadErr === 0 ? 10 : spreadErr <= 3 ? 9 : spreadErr <= 6 ? 8 : spreadErr <= 10 ? 7 : spreadErr <= 15 ? 6 : 5;
+              if (betScore >= 10) coins += 4;
+              else if (betScore >= 9) coins += 2;
+              else if (betScore >= 8) coins += 1;
+            }
+            toAward[claimKey] = coins;
+          });
+        });
+        if (Object.keys(toAward).length === 0) return;
+        const newClaimed = { ...claimed };
+        let totalCoins = 0;
+        Object.entries(toAward).forEach(([k, v]) => { newClaimed[k] = true; totalCoins += v; });
+        // Use Firestore transaction to atomically update coins + claimed map
+        fbDb.runTransaction(async tx => {
+          const ref = fbDb.collection("users").doc(uid);
+          const snap = await tx.get(ref);
+          const existing = snap.exists ? (snap.data().claimedPickCoins ?? {}) : {};
+          // Filter to only truly new claims
+          const reallyNew = Object.entries(newClaimed).filter(([k]) => !existing[k]);
+          if (reallyNew.length === 0) return;
+          const realCoins = reallyNew.reduce((s, [k]) => s + (toAward[k] || 0), 0);
+          const update = { claimedPickCoins: { ...existing } };
+          reallyNew.forEach(([k]) => { update.claimedPickCoins[k] = true; });
+          if (realCoins > 0) update.coins = firebase.firestore.FieldValue.increment(realCoins);
+          tx.update(ref, update);
+          return realCoins;
+        }).then(earned => {
+          if (!earned) return;
+          setCurrentUser(u => u ? { ...u, coins: (u.coins ?? 0) + earned, claimedPickCoins: newClaimed } : u);
+        }).catch(e => console.warn("Coin claim err:", e));
+      }, [votes, gameCache, currentUser?.uid, loadingVotes]);
+
       // When votes load, fetch only the specific game dates that appear in votes
       // (avoids loading all 30 days blindly, which would exhaust the API rate limit)
       useEffect(() => {
@@ -6301,6 +7150,8 @@
       const isDontMiss = view === "dontmiss";
       const isStakes   = view === "stakes";
       const isFriends  = view === "friends";
+      const isBets     = view === "bets";
+      const isShop     = view === "shop";
       const isTeam     = view?.type === "team";
       const isPlayer   = view?.type === "player";
 
@@ -6308,6 +7159,8 @@
       const handleLandingSelect = React.useCallback((which) => {
         if (which === "stakes") {
           setView("stakes");
+        } else if (which === "bets") {
+          setView("bets");
         } else if (which === "catchup") {
           setView("home");
           setAutoOpenAllRecap(true); // tell HomeView to launch the All NBA Recap as soon as games load
@@ -6367,6 +7220,17 @@
                     </button>
                   );
                 })()}
+                {/* Coins display */}
+                {currentUser && (
+                  <div style={{ display:"flex", alignItems:"center", gap:4,
+                    padding:isMobile?"5px 9px":"6px 12px", borderRadius:20,
+                    background:"rgba(234,179,8,0.15)", border:"1px solid rgba(234,179,8,0.35)",
+                    fontSize:isMobile?11:12, fontWeight:800, color:"#fde68a",
+                    animation:"coinFloat 2.5s ease-in-out infinite", flexShrink:0 }}>
+                    <CoinIcon size={isMobile?14:16}/>
+                    <span>{currentUser.coins ?? 0}</span>
+                  </div>
+                )}
                 {/* Spoiler button */}
                 <button onClick={() => setSpoilerMode(m => !m)} style={{ display:"flex", alignItems:"center",
                   gap:5, padding:isMobile?"6px 10px":"7px 14px", borderRadius:20,
@@ -6388,10 +7252,12 @@
               {[
                 { id:"home",      icon:"Activity", label:"Games",      badge: null },
                 { id:"stakes",    icon:"Dices",    label:"Stakes",     badge: null },
+                { id:"bets",      icon:"Target",   label:"Player Bets",badge: null },
+                { id:"shop",      icon:"ShoppingBag", label:"Shop",    badge: null },
                 { id:"favorites", icon:"Star",     label:"Favourites", badge: favTeams.length+favPlayers.length > 0 ? favTeams.length+favPlayers.length : null },
                 { id:"friends",   icon:"Users",    label:"Friends",    badge: currentUser && (currentUser.friends??[]).length > 0 ? (currentUser.friends??[]).length : null },
               ].map(tab => {
-                const active = tab.id==="home" ? isHome : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : isFavs||isTeam||isPlayer;
+                const active = tab.id==="home" ? isHome : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : tab.id==="bets" ? isBets : tab.id==="shop" ? isShop : isFavs||isTeam||isPlayer;
                 return (
                   <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"7px 13px":"7px 18px",
                     borderRadius:20, fontSize:isMobile?12:13, fontWeight:700, flexShrink:0,
@@ -6421,10 +7287,13 @@
                 onSelectTeam={t => setView({type:"team",team:t})}
                 onSelectPlayer={p => setView({type:"player",player:p})} />}
               {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
-                currentUser={currentUser} standings={standings}
+                currentUser={currentUser} setCurrentUser={setCurrentUser} standings={standings}
                 votes={votes} loadingVotes={loadingVotes} leaderboard={globalLeaderboard} />}
               {isFriends && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser}
                 leaderboard={globalLeaderboard} />}
+              {isBets && <PlayerBetsView currentUser={currentUser} setCurrentUser={setCurrentUser}
+                gameCache={gameCache} loadDate={loadDate} />}
+              {isShop && <ShopView currentUser={currentUser} setCurrentUser={setCurrentUser} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
                 onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
               {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
