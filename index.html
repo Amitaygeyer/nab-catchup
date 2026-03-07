@@ -328,6 +328,61 @@
     const SEASON  = 2025; // 2025-26 season
     const logoUrl = abbr => `https://a.espncdn.com/i/teamlogos/nba/500/${String(abbr ?? "").toLowerCase()}.png`;
 
+    // ── Curated top players per team (shown in Player Bets picker) ───────────────
+    const TOP_PLAYERS = {
+      ATL: ["Jalen Johnson","Dyson Daniels","Zaccharie Risacher","Onyeka Okongwu"],
+      BOS: ["Jaylen Brown","Jayson Tatum","Derrick White","Payton Pritchard"],
+      BKN: ["Michael Porter","Nicolas Claxton","Cam Thomas","Cameron Johnson"],
+      CHA: ["LaMelo Ball","Collin Sexton","Brandon Miller","Moussa Diabate"],
+      CHI: ["Coby White","Josh Giddey","Matas Buzelis","Vasilije Micic"],
+      CLE: ["Donovan Mitchell","James Harden","Evan Mobley","Jarrett Allen"],
+      DAL: ["Cooper Flagg","Kyrie Irving","Dereck Lively","PJ Washington"],
+      DEN: ["Nikola Jokic","Jamal Murray","Aaron Gordon","Christian Braun"],
+      DET: ["Cade Cunningham","Jalen Duren","Tobias Harris","Ausar Thompson"],
+      GSW: ["Stephen Curry","Jimmy Butler","Jalen Green","Kristaps Porzingis","Draymond Green"],
+      HOU: ["Kevin Durant","Alperen Sengun","Amen Thompson","Jabari Smith"],
+      IND: ["Tyrese Haliburton","Pascal Siakam","Ivica Zubac","Andrew Nembhard"],
+      LAC: ["Kawhi Leonard","Darius Garland","Benedict Mathurin","Bradley Beal"],
+      LAL: ["Luka Doncic","LeBron James","Deandre Ayton","Austin Reaves"],
+      MEM: ["Marcus Smart","GG Jackson","Desmond Bane","Zach Edey"],
+      MIA: ["Bam Adebayo","Tyler Herro","Kelel Ware","Terry Rozier"],
+      MIL: ["Giannis Antetokounmpo","Damian Lillard","Khris Middleton","Bobby Portis"],
+      MIN: ["Anthony Edwards","Julius Randle","Donte DiVincenzo","Rudy Gobert","Naz Reid"],
+      NOP: ["Trey Murphy","Zion Williamson","Dejounte Murray","Derik Queen","Herb Jones"],
+      NYK: ["Jalen Brunson","Karl-Anthony Towns","Mikal Bridges","OG Anunoby"],
+      OKC: ["Shai Gilgeous-Alexander","Jalen Williams","Chet Holmgren","Cason Wallace","Isaiah Hartenstein","Alex Caruso"],
+      ORL: ["Paolo Banchero","Desmond Bane","Franz Wagner","Jalen Suggs"],
+      PHI: ["Tyrese Maxey","Joel Embiid","Paul George","Kelly Oubre"],
+      PHX: ["Devin Booker","Mark Williams","Grayson Allen","Tyus Jones"],
+      POR: ["Deni Avdija","Shaedon Sharpe","Jrue Holiday","Donovan Clingan"],
+      SAC: ["Domantas Sabonis","Keegan Murray","Russell Westbrook","Malik Monk"],
+      SAS: ["Victor Wembanyama","De'Aaron Fox","Devin Vassell","Stephon Castle"],
+      TOR: ["Brandon Ingram","Scottie Barnes","RJ Barrett","Immanuel Quickley"],
+      UTA: ["Keyonte George","Jaren Jackson","Lauri Markkanen","Isaiah Collier"],
+      WAS: ["Anthony Davis","Jordan Poole","Bilal Coulibaly","Alex Sarr"],
+    };
+    // Normalize: lowercase, strip diacritics, remove Jr/III/II, strip non-alpha
+    const normN = s => s.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/\bjr\.?\b|\biii\b|\bii\b/g,"")
+      .replace(/[^a-z ]/g,"").trim().replace(/\s+/g," ");
+    // Filter API roster to only curated players, returned in curated order
+    const filterTopPlayers = (players, abbr) => {
+      const targets = TOP_PLAYERS[abbr];
+      if (!targets || !targets.length) return players;
+      const result = [];
+      for (const target of targets) {
+        const nt = normN(target);
+        const match = players.find(p => {
+          const full = normN((p.first_name||"")+" "+(p.last_name||""));
+          return full === nt || full.startsWith(nt) || nt.startsWith(normN(p.last_name||"") ) && full.includes(normN(p.first_name||""));
+        });
+        if (match) result.push(match);
+      }
+      // If we matched at least 2, use curated list; otherwise fall back to full roster
+      return result.length >= 2 ? result : players.slice(0, 15);
+    };
+
     // ── TheSportsDB photo cache & fetcher ────────────────────────────────────────
     // key: "Firstname Lastname" → URL string | null (null = tried, not found)
     const sportsDbCache = {};
@@ -6848,6 +6903,14 @@
       const [predAst, setPredAst] = useState("");
       const [placing, setPlacing] = useState(false);
       const [placeMsg, setPlaceMsg] = useState(null);
+      // Game picker states
+      const [betGames, setBetGames] = useState([]);
+      const [betGamesLoading, setBetGamesLoading] = useState(false);
+      const [betGamesDate, setBetGamesDate] = useState(null);
+      const [pickerGame, setPickerGame] = useState(null);
+      const [rosterHome, setRosterHome] = useState([]);
+      const [rosterVisitor, setRosterVisitor] = useState([]);
+      const [rosterLoading, setRosterLoading] = useState(false);
       // Feed states
       const [bets, setBets] = useState([]);
       const [loadingBets, setLoadingBets] = useState(true);
@@ -6902,11 +6965,14 @@
               const dAst = Math.abs(bet.predictedAst - aAst);
               let result, payout;
               const totalDiff = dPts + dReb + dAst;
+              const totalBet  = (bet.predictedPts||0) + (bet.predictedReb||0) + (bet.predictedAst||0);
+              const pct       = totalBet > 0 ? totalDiff / totalBet : 1;
               if (dPts===0 && dReb===0 && dAst===0)   { result="exact";   payout=50; }
               else if (dPts<=1 && dReb<=1 && dAst<=1) { result="within1"; payout=30; }
-              else if (totalDiff<=12)                  { result="within3"; payout=15; }
-              else if (totalDiff<=15)                  { result="within6"; payout=10; }
-              else if (totalDiff<=20)                  { result="within8"; payout=5;  }
+              else if (pct < 0.25)                     { result="within3"; payout=20; }
+              else if (pct < 0.35)                     { result="within6"; payout=15; }
+              else if (pct < 0.40)                     { result="within8"; payout=10; }
+              else if (pct < 0.45)                     { result="within9"; payout=5;  }
               else                                     { result="miss";    payout=0;  }
               await fbDb.runTransaction(async tx => {
                 const betRef  = fbDb.collection("playerBets").doc(bet.id);
@@ -6948,6 +7014,63 @@
         }, 400);
         return () => clearTimeout(t);
       }, [playerSearch]);
+
+      // Load upcoming games for the game picker when on Place tab
+      useEffect(() => {
+        if (subTab !== "place") return;
+        setBetGamesLoading(true);
+        const tryDates = Array.from({length:7}, (_,i) => dateStr(-i));
+        const fetchGames = async () => {
+          for (const d of tryDates) {
+            try {
+              // Use cached value if available, otherwise fetch and use the return value directly
+              // (avoids stale closure — gameCache[d] won't update until next render)
+              let dayGames = gameCache[d];
+              if (dayGames === undefined) {
+                const res = await loadDate(d);
+                dayGames = res?.games ?? [];
+              }
+              const upcoming = (dayGames ?? []).filter(g =>
+                g.status && /^\d{4}-\d{2}-\d{2}T/.test(g.status));
+              if (upcoming.length > 0) {
+                setBetGames(upcoming); setBetGamesDate(d); setBetGamesLoading(false); return;
+              }
+              if ((dayGames ?? []).length > 0) {
+                setBetGames(dayGames); setBetGamesDate(d); setBetGamesLoading(false); return;
+              }
+            } catch(e) {}
+          }
+          setBetGames([]); setBetGamesLoading(false);
+        };
+        fetchGames();
+      }, [subTab]);
+
+      const fetchRoster = (game) => {
+        // Pull players directly from already-loaded box scores in gameCache — no extra API call needed
+        const homeId  = String(game.home?.id ?? game.home_team?.id ?? "");
+        const visId   = String(game.visitor?.id ?? game.visitor_team?.id ?? "");
+        const homeAbbr = (game.home?.abbreviation ?? game.home_team?.abbreviation ?? "").toUpperCase();
+        const visAbbr  = (game.visitor?.abbreviation ?? game.visitor_team?.abbreviation ?? "").toUpperCase();
+
+        // Walk every cached date to find a completed game for each team
+        // gameCache players are stat objects: {player:{id,first_name,last_name,...}, team:{...}, pts, reb, ast}
+        // Map them to flat player objects that selectPlayer() expects
+        const allGames = Object.values(gameCache).flat().filter(g => g.status === "Final");
+        const getTeamPlayers = (teamId) => {
+          for (const g of allGames) {
+            if (String(g.home?.id) === teamId && (g.home?.players ?? []).length > 0)
+              return g.home.players.map(s => ({ ...(s.player ?? s), team: s.team ?? g.home }));
+            if (String(g.visitor?.id) === teamId && (g.visitor?.players ?? []).length > 0)
+              return g.visitor.players.map(s => ({ ...(s.player ?? s), team: s.team ?? g.visitor }));
+          }
+          return [];
+        };
+
+        const homePlayers = getTeamPlayers(homeId);
+        const visPlayers  = getTeamPlayers(visId);
+        setRosterHome(filterTopPlayers(homePlayers, homeAbbr));
+        setRosterVisitor(filterTopPlayers(visPlayers, visAbbr));
+      };
 
       const findNextGame = async (player) => {
         setLoadingGame(true); setNextGame(null);
@@ -7048,8 +7171,8 @@
 
       const today = new Date().toISOString().slice(0,10);
       const upvotesLeft = myUpvotes.date===today ? 3-myUpvotes.count : 3;
-      const resultColor = r => r==="exact"?"#4ade80":r==="within1"?"#a3e635":r==="within3"?"#fbbf24":r==="within6"?"#fb923c":r==="within8"?"#f87171":r==="miss"?"#ef4444":"rgba(255,255,255,0.35)";
-      const resultLabel = r => r==="exact"?"🎯 Exact!":r==="within1"?"🟢 ±1":r==="within3"?"🟡 ±3":r==="within6"?"🟠 Close":r==="within8"?"🔴 Far":r==="miss"?"❌ Miss":"⏳ Pending";
+      const resultColor = r => r==="exact"?"#4ade80":r==="within1"?"#a3e635":r==="within3"?"#fbbf24":r==="within6"?"#fb923c":r==="within8"?"#f87171":r==="within9"?"#f87171":r==="miss"?"#ef4444":"rgba(255,255,255,0.35)";
+      const resultLabel = r => r==="exact"?"🎯 Exact!":r==="within1"?"🟢 ±1":r==="within3"?"🟡 <25%":r==="within6"?"🟠 <35%":r==="within8"?"🔴 <40%":r==="within9"?"🔴 <45%":r==="miss"?"❌ Miss":"⏳ Pending";
 
       const filteredBets = bets.filter(b => {
         if (b.result !== "pending") return false;
@@ -7098,9 +7221,22 @@
         const isPending = bet.result==="pending";
         const rColor = resultColor(bet.result);
         const hasActual = bet.actualPts != null;
+        const [showRanges, setShowRanges] = React.useState(false);
         const betTotalDiff = hasActual
           ? Math.abs(bet.predictedPts-bet.actualPts) + Math.abs(bet.predictedReb-bet.actualReb) + Math.abs(bet.predictedAst-bet.actualAst)
           : null;
+        const totalBet = (bet.predictedPts||0) + (bet.predictedReb||0) + (bet.predictedAst||0);
+        const errorPct = totalBet > 0 && betTotalDiff != null ? Math.round(betTotalDiff / totalBet * 100) : null;
+        // For pending bets: max allowed diff for each tier
+        const prizeRanges = [
+          { coins:50, color:"#4ade80", label:"All 3 exact",       desc:"0 mistakes" },
+          { coins:30, color:"#a3e635", label:"Each stat ±1",      desc:"max 1 off each" },
+          { coins:20, color:"#fbbf24", label:"<25% error",        desc:`up to ${Math.ceil(totalBet*0.25)-1} total off` },
+          { coins:15, color:"#fb923c", label:"<35% error",        desc:`up to ${Math.ceil(totalBet*0.35)-1} total off` },
+          { coins:10, color:"#f87171", label:"<40% error",        desc:`up to ${Math.ceil(totalBet*0.40)-1} total off` },
+          { coins:5,  color:"#f87171", label:"<45% error",        desc:`up to ${Math.ceil(totalBet*0.45)-1} total off` },
+          { coins:0,  color:"#ef4444", label:"≥45% error",        desc:"miss" },
+        ];
         const statCols = ["#f59e0b","#60a5fa","#34d399"];
         const alreadyUpvoted = (bet.upvoters??[]).includes(currentUser?.uid);
         return (
@@ -7151,11 +7287,20 @@
               </span>
               {!isPending && betTotalDiff != null && (
                 <span style={{fontSize:11,fontWeight:700,
-                  color: betTotalDiff===0?"#4ade80":betTotalDiff<=5?"#a3e635":betTotalDiff<=12?"#fbbf24":"rgba(255,255,255,0.4)",
+                  color: betTotalDiff===0?"#4ade80":"rgba(255,255,255,0.55)",
                   background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
                   borderRadius:8,padding:"4px 10px"}}>
-                  {betTotalDiff===0 ? "🎯 Perfect" : `off by ${betTotalDiff} total`}
+                  {betTotalDiff===0 ? "🎯 Perfect" : `off by ${betTotalDiff}${errorPct!=null ? ` (${errorPct}% error)` : ""}`}
                 </span>
+              )}
+              {isPending && (
+                <button onClick={()=>setShowRanges(s=>!s)}
+                  style={{fontSize:11,fontWeight:700,cursor:"pointer",padding:"4px 10px",borderRadius:8,
+                    background: showRanges?"rgba(167,139,250,0.18)":"rgba(255,255,255,0.06)",
+                    border: showRanges?"1px solid rgba(167,139,250,0.45)":"1px solid rgba(255,255,255,0.1)",
+                    color: showRanges?"#c4b5fd":"rgba(255,255,255,0.55)"}}>
+                  📊 Prize ranges
+                </button>
               )}
               {settling && isPending && <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>checking…</span>}
               <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
@@ -7173,6 +7318,23 @@
                 )}
               </div>
             </div>
+            {/* Prize ranges breakdown for pending bets */}
+            {isPending && showRanges && (
+              <div style={{marginTop:10,padding:"10px 12px",borderRadius:10,
+                background:"rgba(8,12,28,0.85)",border:"1px solid rgba(167,139,250,0.25)"}}>
+                <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:"0.07em",
+                  textTransform:"uppercase",marginBottom:8}}>Your bet total: {totalBet} · Prize thresholds</div>
+                <div style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:"4px 10px",alignItems:"center"}}>
+                  {prizeRanges.map(r => (
+                    <React.Fragment key={r.coins}>
+                      <span style={{fontSize:12,fontWeight:900,color:r.color,whiteSpace:"nowrap"}}>{r.coins} 🪙</span>
+                      <span style={{fontSize:11,color:"rgba(255,255,255,0.6)"}}>{r.label}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap",textAlign:"right"}}>{r.desc}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       };
@@ -7240,8 +7402,8 @@
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"5px 16px"}}>
                       {[["🎯","All 3 exact","50 coins","#4ade80"],["🟢","Each within ±1","30 coins","#a3e635"],
-                        ["🟡","Total diff ≤12","15 coins","#fbbf24"],["🟠","Total diff ≤15","10 coins","#fb923c"],
-                        ["🔴","Total diff ≤20","5 coins","#f87171"],["❌","Total diff >20","0 coins","#ef4444"],
+                        ["🟡","Error <25% of bet","20 coins","#fbbf24"],["🟠","Error <35% of bet","15 coins","#fb923c"],
+                        ["🔴","Error <40% of bet","10 coins","#f87171"],["🔴","Error <45% of bet","5 coins","#f87171"],["❌","Error ≥45% of bet","0 coins","#ef4444"],
                       ].map(([icon,desc,reward,col]) => (
                         <React.Fragment key={desc}>
                           <div style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",
@@ -7255,35 +7417,106 @@
                       ))}
                     </div>
                   </div>
-                  <div style={{marginBottom:6}}>
-                    <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>1. Choose a player</div>
-                    <div style={{position:"relative"}}>
-                      <input value={playerSearch} onChange={e=>{setPlayerSearch(e.target.value);setSelectedPlayer(null);setNextGame(null);}}
-                        placeholder="Search by name (e.g. LeBron James)…"
-                        style={{width:"100%",padding:"12px 16px",borderRadius:10,border:"2px solid rgba(167,139,250,0.4)",
-                          background:"rgba(167,139,250,0.07)",color:"white",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
-                      {searching && <span style={{position:"absolute",right:14,top:13,fontSize:12,color:"#a78bfa",fontWeight:600}}>Searching…</span>}
-                      {searchResults.length>0 && (
-                        <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,zIndex:30,
-                          background:"rgba(8,12,28,0.98)",border:"1.5px solid rgba(167,139,250,0.45)",borderRadius:12,
-                          maxHeight:240,overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.6)"}}>
-                          {searchResults.map(p => (
-                            <div key={p.id} onClick={()=>selectPlayer(p)}
-                              style={{padding:"11px 14px",cursor:"pointer",fontSize:13,color:"white",
-                                borderBottom:"1px solid rgba(255,255,255,0.07)",display:"flex",alignItems:"center",gap:10}}
-                              onMouseEnter={e=>e.currentTarget.style.background="rgba(167,139,250,0.18)"}
-                              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                              <TeamLogo abbr={p.team?.abbreviation} size={22}/>
-                              <div style={{flex:1}}>
-                                <div style={{fontWeight:700}}>{p.first_name} {p.last_name}</div>
-                                <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:1}}>{p.team?.full_name??p.team?.abbreviation}</div>
-                              </div>
-                              <span style={{fontSize:11,color:"rgba(255,255,255,0.35)",flexShrink:0}}>{p.position}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  {/* ── Game picker ── */}
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:"0.06em",
+                      textTransform:"uppercase",marginBottom:8}}>1. Choose a player</div>
+                    {/* Instruction */}
+                    <div style={{marginBottom:12,padding:"14px 16px",borderRadius:12,fontSize:13,
+                      background:"rgba(8,12,28,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",
+                      border:"1px solid rgba(167,139,250,0.35)",
+                      color:"rgba(255,255,255,0.75)",lineHeight:1.6,
+                      boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+                      🏀 <b style={{color:"#c4b5fd"}}>Pick a game</b> from today's schedule below, then choose a player from either team to predict their stats.
                     </div>
+                    {/* Selected player chip */}
+                    {selectedPlayer && (
+                      <div style={{marginBottom:10,display:"flex",alignItems:"center",gap:10,padding:"12px 14px",
+                        background:"rgba(8,12,28,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",
+                        border:"1.5px solid rgba(167,139,250,0.45)",borderRadius:12,
+                        boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+                        <TeamLogo abbr={selectedPlayer.team?.abbreviation} size={30}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:900,fontSize:15,color:"white",textShadow:"0 1px 6px rgba(167,139,250,0.3)"}}>{selectedPlayer.first_name} {selectedPlayer.last_name}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:2}}>{selectedPlayer.team?.abbreviation}{selectedPlayer.position ? ` · ${selectedPlayer.position}` : ""}</div>
+                        </div>
+                        <button onClick={()=>{setSelectedPlayer(null);setNextGame(null);setPickerGame(null);}}
+                          style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"5px 11px",
+                            color:"rgba(255,255,255,0.55)",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>✕ Change</button>
+                      </div>
+                    )}
+                    {/* Game grid */}
+                    {betGamesLoading && <div style={{textAlign:"center",padding:"24px",color:"rgba(255,255,255,0.4)",fontSize:13}}>Loading today's games…</div>}
+                    {!betGamesLoading && betGames.length === 0 && (
+                      <div style={{textAlign:"center",padding:"24px",color:"rgba(255,255,255,0.4)",fontSize:13}}>No upcoming games found. Check back on a game day!</div>
+                    )}
+                    {!betGamesLoading && betGames.length > 0 && (
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
+                        {betGames.map(g => {
+                          const isSelected = pickerGame?.id === g.id;
+                          return (
+                            <div key={g.id} onClick={() => {
+                                if (isSelected) { setPickerGame(null); return; }
+                                setPickerGame(g); fetchRoster(g);
+                              }}
+                              style={{padding:"12px 10px",borderRadius:12,cursor:"pointer",textAlign:"center",
+                                background: isSelected ? "rgba(167,139,250,0.18)" : "rgba(8,12,28,0.85)",
+                                border: isSelected ? "2px solid rgba(167,139,250,0.7)" : "1.5px solid rgba(255,255,255,0.1)",
+                                boxShadow: isSelected ? "0 0 16px rgba(167,139,250,0.3)" : "none",
+                                transition:"all 0.15s"}}>
+                              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:6}}>
+                                <TeamLogo abbr={g.visitor?.abbreviation??g.visitor_team?.abbreviation} size={isMobile?28:34}/>
+                                <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.35)"}}>VS</span>
+                                <TeamLogo abbr={g.home?.abbreviation??g.home_team?.abbreviation} size={isMobile?28:34}/>
+                              </div>
+                              <div style={{fontSize:isMobile?11:12,fontWeight:800,color:isSelected?"#c4b5fd":"white"}}>
+                                {g.visitor?.abbreviation??g.visitor_team?.abbreviation} @ {g.home?.abbreviation??g.home_team?.abbreviation}
+                              </div>
+                              {isSelected && <div style={{fontSize:10,color:"#a78bfa",marginTop:3,fontWeight:600}}>▼ select a player</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Roster picker */}
+                    {pickerGame && (
+                      <div style={{marginTop:14,background:"rgba(8,12,28,0.92)",border:"1.5px solid rgba(167,139,250,0.35)",
+                        borderRadius:14,padding:"14px 12px",maxHeight:420,overflowY:"auto"}}>
+                        {(
+                          <div style={{display:"flex",gap:12}}>
+                            {[{abbr:pickerGame.visitor?.abbreviation??pickerGame.visitor_team?.abbreviation, roster:rosterVisitor},
+                              {abbr:pickerGame.home?.abbreviation??pickerGame.home_team?.abbreviation, roster:rosterHome}].map(side => (
+                              <div key={side.abbr} style={{flex:1,minWidth:0}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                                  <TeamLogo abbr={side.abbr} size={20}/>
+                                  <span style={{fontSize:12,fontWeight:900,color:"rgba(255,255,255,0.7)",letterSpacing:"0.05em"}}>{side.abbr}</span>
+                                </div>
+                                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                                  {side.roster.map(p => {
+                                    const isChosen = selectedPlayer?.id === p.id;
+                                    return (
+                                      <div key={p.id} onClick={()=>{ selectPlayer(p); setPickerGame(null); }}
+                                        style={{padding:"9px 10px",borderRadius:9,cursor:"pointer",
+                                          background: isChosen ? "rgba(167,139,250,0.25)" : "rgba(255,255,255,0.05)",
+                                          border: isChosen ? "1.5px solid rgba(167,139,250,0.6)" : "1px solid rgba(255,255,255,0.08)",
+                                          transition:"all 0.1s"}}
+                                        onMouseEnter={e=>{ if(!isChosen) e.currentTarget.style.background="rgba(167,139,250,0.12)"; }}
+                                        onMouseLeave={e=>{ if(!isChosen) e.currentTarget.style.background="rgba(255,255,255,0.05)"; }}>
+                                        <div style={{fontSize:isMobile?13:14,fontWeight:800,color:isChosen?"#c4b5fd":"white",
+                                          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                                          {p.first_name} {p.last_name}
+                                        </div>
+                                        {p.position && <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:1}}>{p.position}</div>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{minHeight:16,marginBottom:14}}>
                     {loadingGame && <div style={{fontSize:12,color:"#a78bfa",padding:"8px 0",fontWeight:600}}>⏳ Finding next game…</div>}
