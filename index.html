@@ -5925,44 +5925,37 @@
       const [profileTab, setProfileTab] = React.useState(initialTab ?? "profile");
 
       const tabs = [
-        { id:"profile",     icon:"User",        label:"Profile"    },
-        { id:"favorites",   icon:"Star",        label:"Favourites" },
-        { id:"friends",     icon:"Users",       label:"Friends"    },
-        { id:"teams-stats", icon:"TrendingUp",  label:"My Teams Bets Stats" },
-        { id:"player-bets", icon:"Target",      label:"My Players Bets Stats" },
+        { id:"profile",     icon:"User",        label:"Profile",               sub:"Your account"   },
+        { id:"favorites",   icon:"Star",        label:"Favourites",            sub:"Teams & players" },
+        { id:"friends",     icon:"Users",       label:"Friends",               sub:"Your friends"   },
+        { id:"teams-stats", icon:"TrendingUp",  label:"My Teams Bets Stats",   sub:"Win history"    },
+        { id:"player-bets", icon:"Target",      label:"My Players Bets Stats", sub:"Bet history"    },
       ];
 
       return (
         <div style={{ maxWidth:900, margin:"0 auto", padding:isMobile?"12px 10px":"24px 20px" }}>
-          {/* Profile header */}
-          {currentUser && (
-            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20,
-              background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-              borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"14px 18px" }}>
-              <UserAvatar avatarId={currentUser.avatar} size={52} showRank={true} allTimeCoins={currentUser.allTimeCoins??0} />
-              <div>
-                <div style={{ fontSize:18, fontWeight:900, color:"white" }}>{currentUser.username}</div>
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginTop:3 }}>
-                  🪙 {currentUser.coins ?? 0} coins
-                </div>
-              </div>
-            </div>
-          )}
           {/* Sub-tab bar */}
-          <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setProfileTab(t.id)}
-                style={{ padding:"8px 16px", borderRadius:20, fontWeight:700,
-                  fontSize:isMobile?11:13, flexShrink:0, cursor:"pointer", border:"none",
-                  background: profileTab===t.id ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(8,12,28,0.85)",
-                  color: profileTab===t.id ? "white" : "rgba(255,255,255,0.65)",
-                  boxShadow: profileTab===t.id ? "0 2px 10px rgba(245,158,11,0.4)" : "none",
-                  outline: profileTab!==t.id ? "1px solid rgba(255,255,255,0.13)" : "none",
-                  display:"flex", alignItems:"center", gap:6, transition:"all 0.15s" }}>
-                <SI n={t.icon} size={13} color={profileTab===t.id?"white":"rgba(255,255,255,0.65)"} />
-                {t.label}
-              </button>
-            ))}
+          <div style={{ marginBottom:16, background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+            borderRadius:16, padding:isMobile?"14px 16px":"16px 24px", border:"1px solid rgba(245,158,11,0.22)",
+            boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
+            <div style={{ display:"flex", gap:isMobile?4:6, overflowX:"auto", WebkitOverflowScrolling:"touch" }} className="mobile-scroll">
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setProfileTab(t.id)}
+                  style={{ padding:isMobile?"8px 12px":"9px 16px", borderRadius:10, flexShrink:0,
+                    cursor:"pointer", transition:"all 0.15s", border:"none",
+                    background: profileTab===t.id ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(255,255,255,0.10)",
+                    boxShadow: profileTab===t.id ? "0 2px 10px rgba(245,158,11,0.4)" : "none" }}>
+                  <div style={{ fontSize:isMobile?12:13, fontWeight:800,
+                    color: profileTab===t.id ? "white" : "rgba(255,255,255,0.65)", whiteSpace:"nowrap",
+                    display:"flex", alignItems:"center", gap:5 }}>
+                    <SI n={t.icon} size={12} color={profileTab===t.id?"white":"rgba(255,255,255,0.65)"} />
+                    <span>{t.label}</span>
+                  </div>
+                  <div style={{ fontSize:9, fontWeight:600, marginTop:2,
+                    color: profileTab===t.id ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.35)" }}>{t.sub}</div>
+                </button>
+              ))}
+            </div>
           </div>
           {/* Sub-tab content */}
           {profileTab === "profile" && (() => {
@@ -7184,22 +7177,40 @@
       };
 
       return (
-        <div style={{maxWidth:700,margin:"0 auto",padding:isMobile?"12px 10px":"24px 20px"}}>
+        <div style={{maxWidth:900,margin:"0 auto",padding:isMobile?"12px 10px":"24px 20px"}}>
           {/* SubTab bar — hidden when used as embedded panel */}
           {!defaultSubTab && (
-          <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
-            {[{id:"feed",label:"📋 Feed"},{id:"place",label:"🎯 Place Bet"},
-              {id:"results",label:"🏆 Results"},{id:"mybets",label:"👤 My Bets"}].map(t => (
-              <button key={t.id} onClick={() => setSubTab(t.id)}
-                style={{padding:"8px 16px",borderRadius:20,fontWeight:700,fontSize:isMobile?11:13,flexShrink:0,
-                  background:subTab===t.id?"linear-gradient(135deg,#f59e0b,#d97706)":"rgba(8,12,28,0.85)",
-                  color:subTab===t.id?"white":"rgba(255,255,255,0.65)",
-                  border:subTab===t.id?"none":"1px solid rgba(255,255,255,0.13)",
-                  boxShadow:subTab===t.id?"0 2px 10px rgba(245,158,11,0.4)":"none",
-                  cursor:"pointer"}}>
-                {t.label}
-              </button>
-            ))}
+          <div style={{ marginBottom:16, background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+            borderRadius:16, padding:isMobile?"14px 16px":"16px 24px", border:"1px solid rgba(245,158,11,0.22)",
+            boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
+            <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"white", marginBottom:4,
+              textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}>
+              <SI n="Target" size={isMobile?18:22} />{" Player Bets"}
+            </h2>
+            <p style={{ fontSize:isMobile?12:13, color:"rgba(255,255,255,0.6)", fontWeight:500, marginBottom:14 }}>
+              Predict Points, Rebounds & Assists · Exact picks earn <b style={{ color:"#fbbf24" }}>50 coins</b> · Settle after game day
+            </p>
+            <div style={{display:"flex",gap:isMobile?4:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}} className="mobile-scroll">
+              {[{id:"feed",icon:"Activity",label:"Feed",sub:"Live bets"},
+                {id:"place",icon:"Target",label:"Place Bet",sub:"New prediction"},
+                {id:"results",icon:"BarChart2",label:"Results",sub:"Today's bets"},
+                {id:"mybets",icon:"User",label:"My Bets",sub:"Your history"}].map(t => (
+                <button key={t.id} onClick={() => setSubTab(t.id)}
+                  style={{padding:isMobile?"8px 12px":"9px 16px",borderRadius:10,flexShrink:0,
+                    cursor:"pointer",transition:"all 0.15s",border:"none",
+                    background:subTab===t.id?"linear-gradient(135deg,#f59e0b,#d97706)":"rgba(255,255,255,0.10)",
+                    boxShadow:subTab===t.id?"0 2px 10px rgba(245,158,11,0.4)":"none"}}>
+                  <div style={{fontSize:isMobile?12:13,fontWeight:800,
+                    color:subTab===t.id?"white":"rgba(255,255,255,0.65)",whiteSpace:"nowrap",
+                    display:"flex",alignItems:"center",gap:5}}>
+                    <SI n={t.icon} size={12} color={subTab===t.id?"white":"rgba(255,255,255,0.65)"} />
+                    <span>{t.label}</span>
+                  </div>
+                  <div style={{fontSize:9,fontWeight:600,marginTop:2,
+                    color:subTab===t.id?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.35)"}}>{t.sub}</div>
+                </button>
+              ))}
+            </div>
           </div>
           )}
 
@@ -7878,7 +7889,7 @@
                   leaderboard={globalLeaderboard}
                   gameCache={gameCache} loadDate={loadDate}
                   standings={standings} votes={votes} loadingVotes={loadingVotes}
-                  initialTab={typeof view === "object" && view?.profileTab ? view.profileTab : "favorites"}
+                  initialTab={typeof view === "object" && view?.profileTab ? view.profileTab : "profile"}
                 />
               )}
               {isFavs && !isProfile && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
