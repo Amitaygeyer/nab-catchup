@@ -3125,6 +3125,16 @@
                       padding:"8px 0", fontStyle:"italic" }}>No predictions recorded for this game</div>
                   )}
                 </div>
+                {/* YouTube highlights link */}
+                <div style={{ animation:"recapSlideUp 0.55s ease 0.85s both", marginTop:8 }}>
+                  <HighlightsButton game={curGame} date={date}
+                    style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(248,113,113,0.35)",
+                      color:"#f87171", fontSize:12, padding:"10px 14px", borderRadius:14 }} />
+                  <div style={{ textAlign:"center", marginTop:6, fontSize:10,
+                    color:"rgba(255,255,255,0.3)", fontStyle:"italic", letterSpacing:"0.02em" }}>
+                    (link to watch game highlights on YouTube)
+                  </div>
+                </div>
                 </div>
                 );
               })()}
@@ -4298,7 +4308,7 @@
             <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"white", marginBottom:4,
               textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}><SI n="Users" size={isMobile?18:22} />{" Friends"}</h2>
             <p style={{ fontSize:isMobile?12:13, color:"rgba(255,255,255,0.6)", fontWeight:500 }}>
-              Add friends to see their picks in Stakes and compare predictions
+              Add friends to see their picks in Teams Bets and compare predictions
             </p>
           </div>
 
@@ -4482,9 +4492,9 @@
     }
 
     // ── Stakes View ───────────────────────────────────────────────────────────────
-    function StakesView({ gameCache, loadDate, currentUser, setCurrentUser, standings, votes, loadingVotes, leaderboard }) {
+    function StakesView({ gameCache, loadDate, currentUser, setCurrentUser, standings, votes, loadingVotes, leaderboard, defaultTab }) {
       const isMobile = useWindowWidth() < 600;
-      const [tab,          setTab]          = useState("vote");
+      const [tab,          setTab]          = useState(defaultTab ?? "vote");
       const [submitting,   setSubmitting]   = useState(null); // gameId being submitted
 
       // Vote dates: today + next 2 days. Result dates: yesterday + 2 more past days.
@@ -5427,14 +5437,14 @@
 
       return (
         <div style={{ maxWidth:900, margin:"0 auto", padding:isMobile?"14px 12px":"20px 24px" }}>
-          {/* Page header */}
-          <div style={{ marginBottom:16,
+          {/* Page header — hidden when used as embedded stats panel */}
+          {!defaultTab && <div style={{ marginBottom:16,
             background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
             borderRadius:16, padding:isMobile?"14px 16px":"16px 24px",
             border:"1px solid rgba(245,158,11,0.22)",
             boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
             <h2 style={{ fontSize:isMobile?20:26, fontWeight:900, color:"white", marginBottom:4,
-              textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}><SI n="Dices" size={isMobile?18:22} />{" Stakes"}</h2>
+              textShadow:"0 1px 8px rgba(245,158,11,0.3)", display:"flex", alignItems:"center", gap:6 }}><SI n="Dices" size={isMobile?18:22} />{" Teams Bets"}</h2>
             <p style={{ fontSize:isMobile?12:13, color:"rgba(255,255,255,0.6)", fontWeight:500 }}>
               Pick the winners · Voting closes <b style={{ color:"#fbbf24" }}>1 hour before tip-off</b> · Compete with friends
             </p>
@@ -5464,7 +5474,7 @@
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* ── VOTE TAB ── */}
           {tab === "vote" && (
@@ -5907,6 +5917,186 @@
       );
     }
 
+    // ── Profile View ─────────────────────────────────────────────────────────────
+    function ProfileView({ favTeams, setFavTeams, favPlayers, setFavPlayers,
+      onSelectTeam, onSelectPlayer, currentUser, setCurrentUser,
+      leaderboard, gameCache, loadDate, standings, votes, loadingVotes, initialTab }) {
+      const isMobile = useWindowWidth() < 600;
+      const [profileTab, setProfileTab] = React.useState(initialTab ?? "profile");
+
+      const tabs = [
+        { id:"profile",     icon:"User",        label:"Profile"    },
+        { id:"favorites",   icon:"Star",        label:"Favourites" },
+        { id:"friends",     icon:"Users",       label:"Friends"    },
+        { id:"teams-stats", icon:"TrendingUp",  label:"My Teams Bets Stats" },
+        { id:"player-bets", icon:"Target",      label:"My Players Bets Stats" },
+      ];
+
+      return (
+        <div style={{ maxWidth:900, margin:"0 auto", padding:isMobile?"12px 10px":"24px 20px" }}>
+          {/* Profile header */}
+          {currentUser && (
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20,
+              background:"rgba(8,12,28,0.72)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+              borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"14px 18px" }}>
+              <UserAvatar avatarId={currentUser.avatar} size={52} showRank={true} allTimeCoins={currentUser.allTimeCoins??0} />
+              <div>
+                <div style={{ fontSize:18, fontWeight:900, color:"white" }}>{currentUser.username}</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginTop:3 }}>
+                  🪙 {currentUser.coins ?? 0} coins
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Sub-tab bar */}
+          <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setProfileTab(t.id)}
+                style={{ padding:"8px 16px", borderRadius:20, fontWeight:700,
+                  fontSize:isMobile?11:13, flexShrink:0, cursor:"pointer", border:"none",
+                  background: profileTab===t.id ? "linear-gradient(135deg,#f59e0b,#d97706)" : "rgba(8,12,28,0.85)",
+                  color: profileTab===t.id ? "white" : "rgba(255,255,255,0.65)",
+                  boxShadow: profileTab===t.id ? "0 2px 10px rgba(245,158,11,0.4)" : "none",
+                  outline: profileTab!==t.id ? "1px solid rgba(255,255,255,0.13)" : "none",
+                  display:"flex", alignItems:"center", gap:6, transition:"all 0.15s" }}>
+                <SI n={t.icon} size={13} color={profileTab===t.id?"white":"rgba(255,255,255,0.65)"} />
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {/* Sub-tab content */}
+          {profileTab === "profile" && (() => {
+            if (!currentUser) return (
+              <div style={{ textAlign:"center", padding:"60px 24px",
+                background:"rgba(8,12,28,0.72)", borderRadius:16, border:"1px solid rgba(245,158,11,0.22)" }}>
+                <SI n="User" size={48} color="rgba(255,255,255,0.3)" />
+                <div style={{ fontWeight:700, color:"white", marginTop:12 }}>Sign in to view your profile</div>
+              </div>
+            );
+            const me = leaderboard.find(u => u.uid === currentUser.uid);
+            const correctPicks = me?.correct ?? 0;
+            const myRankObj = getRank(correctPicks);
+            const myRankIdx = PLAYER_RANKS.indexOf(myRankObj);
+            const nextRank = PLAYER_RANKS[myRankIdx + 1];
+            const progressToNext = nextRank
+              ? Math.min(100, Math.round(((correctPicks - myRankObj.min) / (nextRank.min - myRankObj.min)) * 100))
+              : 100;
+            const atc = currentUser.allTimeCoins ?? 0;
+            const numStars = Math.min(10, Math.max(0, Math.floor(atc / 100)));
+            const globalRank = [...leaderboard].sort((a,b) => b.correct - a.correct).findIndex(u => u.uid === currentUser.uid) + 1;
+            return (
+              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                {/* Big avatar + identity */}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16,
+                  background:"rgba(8,12,28,0.82)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+                  borderRadius:20, border:`1.5px solid ${myRankObj.color}55`,
+                  padding:isMobile?"20px 16px":"28px 24px",
+                  boxShadow:`0 0 40px ${myRankObj.glow}` }}>
+                  <UserAvatar avatarId={currentUser.avatar} size={isMobile?90:110}
+                    showRank={true} allTimeCoins={atc} correct={correctPicks} />
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:isMobile?22:28, fontWeight:900, color:"white",
+                      textShadow:`0 0 20px ${myRankObj.glow}`, marginBottom:8 }}>
+                      {currentUser.username}
+                    </div>
+                    <RankBadge correct={correctPicks} size="lg" />
+                  </div>
+                  {/* Stats row */}
+                  <div style={{ display:"flex", gap:isMobile?12:24, flexWrap:"wrap", justifyContent:"center" }}>
+                    {[
+                      { icon:"⭐", label:"Stars", val: numStars },
+                      { icon:"🪙", label:"All-Time Coins", val: atc.toLocaleString() },
+                      { icon:"🎯", label:"Correct Picks", val: correctPicks },
+                      { icon:"🌍", label:"Global Rank", val: globalRank > 0 ? `#${globalRank}` : "—" },
+                    ].map(s => (
+                      <div key={s.label} style={{ textAlign:"center", minWidth:70 }}>
+                        <div style={{ fontSize:isMobile?22:26, fontWeight:900, color:"white" }}>{s.icon} {s.val}</div>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginTop:2, letterSpacing:"0.05em" }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Rank progress */}
+                <div style={{ background:"rgba(8,12,28,0.72)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+                  borderRadius:16, border:"1px solid rgba(245,158,11,0.22)", padding:"18px 20px" }}>
+                  <div style={{ fontSize:14, fontWeight:900, color:"white", marginBottom:14,
+                    display:"flex", alignItems:"center", gap:6 }}>
+                    <SI n="TrendingUp" size={14} color="#f59e0b" /> Your Rank Progress
+                  </div>
+                  {nextRank && (
+                    <div style={{ marginBottom:14 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:myRankObj.color }}>{myRankObj.label}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color:nextRank.color }}>{nextRank.label} · {nextRank.min - correctPicks} wins to go</span>
+                      </div>
+                      <div style={{ height:10, borderRadius:8, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${progressToNext}%`, borderRadius:8,
+                          background:myRankObj.ringBg, boxShadow:`0 0 8px ${myRankObj.glow}`, transition:"width 0.7s" }} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Rank table */}
+                  <div style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.45)",
+                    letterSpacing:"0.07em", textTransform:"uppercase", marginBottom:10 }}>All Ranks</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                    {PLAYER_RANKS.map((r, ri) => {
+                      const reached = correctPicks >= r.min;
+                      const isCurrent = r === myRankObj;
+                      return (
+                        <div key={r.label} style={{ display:"flex", alignItems:"center", gap:10,
+                          padding:"8px 12px", borderRadius:10,
+                          background: isCurrent ? `${myRankObj.glow.replace(/[\d.]+\)$/, "0.12)")}` : reached ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.2)",
+                          border: isCurrent ? `1px solid ${r.color}55` : "1px solid rgba(255,255,255,0.06)",
+                          opacity: reached ? 1 : 0.42 }}>
+                          <div style={{ width:30, height:30, borderRadius:"50%", flexShrink:0,
+                            background: reached ? r.bg : "rgba(255,255,255,0.06)",
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                            boxShadow: reached ? `0 0 10px ${r.glow}` : "none" }}>
+                            <SI n={r.icon} size={14} color={reached ? r.textColor : "rgba(255,255,255,0.3)"} />
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:900, color: reached ? r.textColor : "rgba(255,255,255,0.35)" }}>
+                              {r.label}
+                              {isCurrent && <span style={{ fontSize:9, fontWeight:700, marginLeft:6,
+                                background:"rgba(245,158,11,0.2)", border:"1px solid rgba(245,158,11,0.4)",
+                                borderRadius:6, padding:"1px 5px", color:"#fbbf24" }}>CURRENT</span>}
+                            </div>
+                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:1 }}>
+                              {r.max === Infinity ? `${r.min}+ wins` : `${r.min}–${r.max} wins`}
+                            </div>
+                          </div>
+                          {reached && <SI n="Check" size={14} color={r.color} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          {profileTab === "favorites" && (
+            <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
+              favPlayers={favPlayers} setFavPlayers={setFavPlayers}
+              onSelectTeam={onSelectTeam} onSelectPlayer={onSelectPlayer} />
+          )}
+          {profileTab === "friends" && (
+            <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser}
+              leaderboard={leaderboard} />
+          )}
+          {profileTab === "teams-stats" && (
+            <StakesView gameCache={gameCache} loadDate={loadDate}
+              currentUser={currentUser} setCurrentUser={setCurrentUser}
+              standings={standings} votes={votes} loadingVotes={loadingVotes}
+              leaderboard={leaderboard} defaultTab="my-stats" />
+          )}
+          {profileTab === "player-bets" && (
+            <PlayerBetsView currentUser={currentUser} setCurrentUser={setCurrentUser}
+              gameCache={gameCache} loadDate={loadDate} defaultSubTab="mybets" />
+          )}
+        </div>
+      );
+    }
+
     // ── Landing Page ─────────────────────────────────────────────────────────────
 
     /* Bouncing basketball animation for CatchUp card */
@@ -6236,7 +6426,7 @@
               color: pulse ? "#a3e635" : "#fde68a",
               transition:"color 0.3s",
               textShadow: pulse ? "0 0 12px #a3e635" : "0 0 8px rgba(253,230,138,0.5)" }}>
-              🎯 {pulse ? "+20 coins!" : "Predict stats"}
+              🎯 {pulse ? "+50 coins!" : "Predict stats"}
             </span>
           </div>
         </div>
@@ -6244,7 +6434,7 @@
     }
 
         /* Main landing page */
-    function LandingPage({ onSelect }) {
+    function LandingPage({ onSelect, spoilerMode, onToggleSpoiler }) {
       const isMobile = useWindowWidth() < 600;
       const [exiting, setExiting] = React.useState(false);
       const [clickedId, setClickedId] = React.useState(null);
@@ -6271,9 +6461,9 @@
           border:"rgba(96,165,250,0.55)", borderDim:"rgba(96,165,250,0.2)",
           bg:"linear-gradient(155deg,rgba(4,14,36,0.96) 0%,rgba(8,22,52,0.97) 100%)" },
         { id:"stakes", anim:"stakes",
-          title:"Stakes", subtitle:"Bet & Compete",
+          title:"Teams Bets", subtitle:"Bet & Compete",
           desc:"Pick game winners, bet on the margin, and climb the ranks from Rookie to Legend on the global leaderboard",
-          icon:"🎲", btnLabel:"Enter Stakes",
+          icon:"🎲", btnLabel:"Enter Teams Bets",
           color:"#34d399", glow:"rgba(52,211,153,0.45)", glowBlob:"rgba(52,211,153,0.1)", glowBlobBright:"rgba(52,211,153,0.3)",
           border:"rgba(52,211,153,0.55)", borderDim:"rgba(52,211,153,0.2)",
           bg:"linear-gradient(155deg,rgba(2,20,14,0.96) 0%,rgba(4,20,36,0.97) 100%)" },
@@ -6324,8 +6514,28 @@
             ))}
           </div>
 
+          {/* No Spoilers toggle */}
+          <div style={{ marginTop: isMobile ? 10 : 16, textAlign:"center",
+            animation:"landTitleIn 0.5s ease 0.5s both" }}>
+            <button
+              onClick={() => onToggleSpoiler && onToggleSpoiler()}
+              style={{ background: spoilerMode ? "rgba(245,158,11,0.18)" : "rgba(255,255,255,0.07)",
+                border: `1px solid ${spoilerMode ? "rgba(245,158,11,0.55)" : "rgba(255,255,255,0.15)"}`,
+                borderRadius:20, padding:"7px 18px", cursor:"pointer", transition:"all 0.2s",
+                display:"inline-flex", alignItems:"center", gap:7,
+                color: spoilerMode ? "#fbbf24" : "rgba(255,255,255,0.5)",
+                fontSize: isMobile ? 11 : 12, fontWeight:700, letterSpacing:"0.04em" }}>
+              <span style={{ fontSize:14 }}>{spoilerMode ? "🙈" : "👁️"}</span>
+              {spoilerMode ? "No Spoilers: ON" : "No Spoilers: OFF"}
+            </button>
+            <div style={{ marginTop:5, fontSize:isMobile?9:10, color:"rgba(255,255,255,0.22)",
+              fontStyle:"italic" }}>
+              {spoilerMode ? "Scores & results are hidden" : "Tap to hide scores before watching recaps"}
+            </div>
+          </div>
+
           {/* Skip link */}
-          <div style={{ marginTop: isMobile ? 14 : 24, textAlign:"center",
+          <div style={{ marginTop: isMobile ? 10 : 16, textAlign:"center",
             animation:"landTitleIn 0.5s ease 0.55s both" }}>
             <button onClick={() => handleClick("games")}
               style={{ background:"none", border:"none", color:"rgba(255,255,255,0.25)",
@@ -6630,9 +6840,9 @@
     }
 
     // ── Player Bets View ───────────────────────────────────────────────────────────    // ── Player Bets View ───────────────────────────────────────────────────────────
-    function PlayerBetsView({ currentUser, setCurrentUser, gameCache, loadDate }) {
+    function PlayerBetsView({ currentUser, setCurrentUser, gameCache, loadDate, defaultSubTab }) {
       const isMobile = useWindowWidth() < 600;
-      const [subTab, setSubTab] = useState("feed");
+      const [subTab, setSubTab] = useState(defaultSubTab ?? "feed");
       // Place Bet states
       const [playerSearch, setPlayerSearch] = useState("");
       const [searchResults, setSearchResults] = useState([]);
@@ -6698,12 +6908,13 @@
               const dReb = Math.abs(bet.predictedReb - aReb);
               const dAst = Math.abs(bet.predictedAst - aAst);
               let result, payout;
-              if (dPts===0 && dReb===0 && dAst===0)          { result="exact";   payout=30; }
-              else if (dPts<=1 && dReb<=1 && dAst<=1)         { result="within1"; payout=20; }
-              else if (dPts<=3 && dReb<=3 && dAst<=3)         { result="within3"; payout=15; }
-              else if (dPts<=6 && dReb<=4 && dAst<=4)         { result="within6"; payout=10; }
-              else if (dPts<=8 && dReb<=4 && dAst<=4)         { result="within8"; payout=5;  }
-              else                                              { result="miss";    payout=0;  }
+              const totalDiff = dPts + dReb + dAst;
+              if (dPts===0 && dReb===0 && dAst===0)   { result="exact";   payout=50; }
+              else if (dPts<=1 && dReb<=1 && dAst<=1) { result="within1"; payout=30; }
+              else if (totalDiff<=12)                  { result="within3"; payout=15; }
+              else if (totalDiff<=15)                  { result="within6"; payout=10; }
+              else if (totalDiff<=20)                  { result="within8"; payout=5;  }
+              else                                     { result="miss";    payout=0;  }
               await fbDb.runTransaction(async tx => {
                 const betRef  = fbDb.collection("playerBets").doc(bet.id);
                 const betSnap = await tx.get(betRef);
@@ -6893,6 +7104,9 @@
         const isPending = bet.result==="pending";
         const rColor = resultColor(bet.result);
         const hasActual = bet.actualPts != null;
+        const betTotalDiff = hasActual
+          ? Math.abs(bet.predictedPts-bet.actualPts) + Math.abs(bet.predictedReb-bet.actualReb) + Math.abs(bet.predictedAst-bet.actualAst)
+          : null;
         const statCols = ["#f59e0b","#60a5fa","#34d399"];
         const alreadyUpvoted = (bet.upvoters??[]).includes(currentUser?.uid);
         return (
@@ -6941,6 +7155,14 @@
                 {!isPending && bet.payout>0 && <span style={{opacity:0.8}}>· +{bet.payout} 🪙</span>}
                 {!isPending && bet.payout===0 && bet.result!=="pending" && <span style={{opacity:0.6}}>· 0 🪙</span>}
               </span>
+              {!isPending && betTotalDiff != null && (
+                <span style={{fontSize:11,fontWeight:700,
+                  color: betTotalDiff===0?"#4ade80":betTotalDiff<=5?"#a3e635":betTotalDiff<=12?"#fbbf24":"rgba(255,255,255,0.4)",
+                  background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                  borderRadius:8,padding:"4px 10px"}}>
+                  {betTotalDiff===0 ? "🎯 Perfect" : `off by ${betTotalDiff} total`}
+                </span>
+              )}
               {settling && isPending && <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>checking…</span>}
               <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
                 <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontWeight:600}}>👍 {(bet.upvoters??[]).length}</span>
@@ -6963,7 +7185,8 @@
 
       return (
         <div style={{maxWidth:700,margin:"0 auto",padding:isMobile?"12px 10px":"24px 20px"}}>
-          {/* SubTab bar */}
+          {/* SubTab bar — hidden when used as embedded panel */}
+          {!defaultSubTab && (
           <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
             {[{id:"feed",label:"📋 Feed"},{id:"place",label:"🎯 Place Bet"},
               {id:"results",label:"🏆 Results"},{id:"mybets",label:"👤 My Bets"}].map(t => (
@@ -6978,6 +7201,7 @@
               </button>
             ))}
           </div>
+          )}
 
           {/* ── Place Bet Tab ── */}
           {subTab==="place" && (
@@ -7003,9 +7227,9 @@
                       Predict Points, Rebounds & Assists for one player's next game
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"5px 16px"}}>
-                      {[["🎯","All 3 exact","30 coins","#4ade80"],["🟢","All 3 within ±1","20 coins","#a3e635"],
-                        ["🟡","All 3 within ±3","15 coins","#fbbf24"],["🟠","PTS ±6, REB & AST ±4","10 coins","#fb923c"],
-                        ["🔴","PTS ±8, REB & AST ±4","5 coins","#f87171"],["❌","Outside all ranges","0 coins","#ef4444"],
+                      {[["🎯","All 3 exact","50 coins","#4ade80"],["🟢","Each within ±1","30 coins","#a3e635"],
+                        ["🟡","Total diff ≤12","15 coins","#fbbf24"],["🟠","Total diff ≤15","10 coins","#fb923c"],
+                        ["🔴","Total diff ≤20","5 coins","#f87171"],["❌","Total diff >20","0 coins","#ef4444"],
                       ].map(([icon,desc,reward,col]) => (
                         <React.Fragment key={desc}>
                           <div style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",
@@ -7505,6 +7729,7 @@
       const isFriends  = view === "friends";
       const isBets     = view === "bets";
       const isShop     = view === "shop";
+      const isProfile  = view === "profile" || (typeof view === "object" && view?.profileTab);
       const isTeam     = view?.type === "team";
       const isPlayer   = view?.type === "player";
 
@@ -7523,7 +7748,7 @@
         setShowLanding(false);
       }, []);
 
-      if (showLanding) return <LandingPage onSelect={handleLandingSelect} />;
+      if (showLanding) return <LandingPage onSelect={handleLandingSelect} spoilerMode={spoilerMode} onToggleSpoiler={() => setSpoilerMode(s => !s)} />;
 
       return (
         <div style={{ minHeight:"100vh", background:"rgba(238,244,255,0.08)" }}>
@@ -7613,13 +7838,12 @@
               className="mobile-scroll">
               {[
                 { id:"home",      icon:"Activity", label:"Games",      badge: null },
-                { id:"stakes",    icon:"Dices",    label:"Stakes",     badge: null },
+                { id:"stakes",    icon:"Dices",    label:"Teams Bets",     badge: null },
                 { id:"bets",      icon:"Target",   label:"Player Bets",badge: null },
                 { id:"shop",      icon:"ShoppingBag", label:"Shop",    badge: null },
-                { id:"favorites", icon:"Star",     label:"Favourites", badge: favTeams.length+favPlayers.length > 0 ? favTeams.length+favPlayers.length : null },
-                { id:"friends",   icon:"Users",    label:"Friends",    badge: currentUser && (currentUser.friends??[]).length > 0 ? (currentUser.friends??[]).length : null },
+                { id:"profile",   icon:"User",     label:"Profile",    badge: null },
               ].map(tab => {
-                const active = tab.id==="home" ? isHome : tab.id==="stakes" ? isStakes : tab.id==="friends" ? isFriends : tab.id==="bets" ? isBets : tab.id==="shop" ? isShop : isFavs||isTeam||isPlayer;
+                const active = tab.id==="home" ? isHome : tab.id==="stakes" ? isStakes : tab.id==="bets" ? isBets : tab.id==="shop" ? isShop : isProfile||isFavs||isFriends||isTeam||isPlayer;
                 return (
                   <button key={tab.id} onClick={() => setView(tab.id)} style={{ padding:isMobile?"7px 13px":"7px 18px",
                     borderRadius:20, fontSize:isMobile?12:13, fontWeight:700, flexShrink:0,
@@ -7644,21 +7868,34 @@
             <div style={{ flex:1, minWidth:0 }}>
               {isHome && <HomeView gameCache={gameCache} loadDate={loadDate} spoilerMode={spoilerMode} standings={standings} favTeams={favTeams} favPlayers={favPlayers} votes={votes}
                 autoOpenAllRecap={autoOpenAllRecap} onAutoRecapOpened={() => setAutoOpenAllRecap(false)} />}
-              {isFavs  && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
+              {isProfile && !isTeam && !isPlayer && (
+                <ProfileView
+                  favTeams={favTeams} setFavTeams={setFavTeams}
+                  favPlayers={favPlayers} setFavPlayers={setFavPlayers}
+                  onSelectTeam={t => setView({type:"team",team:t})}
+                  onSelectPlayer={p => setView({type:"player",player:p})}
+                  currentUser={currentUser} setCurrentUser={setCurrentUser}
+                  leaderboard={globalLeaderboard}
+                  gameCache={gameCache} loadDate={loadDate}
+                  standings={standings} votes={votes} loadingVotes={loadingVotes}
+                  initialTab={typeof view === "object" && view?.profileTab ? view.profileTab : "favorites"}
+                />
+              )}
+              {isFavs && !isProfile && <FavoritesView favTeams={favTeams} setFavTeams={setFavTeams}
                 favPlayers={favPlayers} setFavPlayers={setFavPlayers}
                 onSelectTeam={t => setView({type:"team",team:t})}
                 onSelectPlayer={p => setView({type:"player",player:p})} />}
               {isStakes && <StakesView gameCache={gameCache} loadDate={loadDate}
                 currentUser={currentUser} setCurrentUser={setCurrentUser} standings={standings}
                 votes={votes} loadingVotes={loadingVotes} leaderboard={globalLeaderboard} />}
-              {isFriends && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser}
+              {isFriends && !isProfile && <FriendsView currentUser={currentUser} setCurrentUser={setCurrentUser}
                 leaderboard={globalLeaderboard} />}
               {isBets && <PlayerBetsView currentUser={currentUser} setCurrentUser={setCurrentUser}
                 gameCache={gameCache} loadDate={loadDate} />}
               {isShop && <ShopView currentUser={currentUser} setCurrentUser={setCurrentUser} leaderboard={globalLeaderboard} />}
               {isTeam  && <TeamView team={view.team} gameCache={gameCache} loadDate={loadDate}
-                onBack={() => setView("favorites")} spoilerMode={spoilerMode} standings={standings} />}
-              {isPlayer && <PlayerView player={view.player} onBack={() => setView("favorites")} />}
+                onBack={() => setView("profile")} spoilerMode={spoilerMode} standings={standings} />}
+              {isPlayer && <PlayerView player={view.player} onBack={() => setView("profile")} />}
               {/* Mobile: standings at bottom of every page */}
               {isMobile && <StandingsPanel standings={standings} spoilerMode={spoilerMode} />}
             </div>
