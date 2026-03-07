@@ -7052,6 +7052,7 @@
       const resultLabel = r => r==="exact"?"🎯 Exact!":r==="within1"?"🟢 ±1":r==="within3"?"🟡 ±3":r==="within6"?"🟠 Close":r==="within8"?"🔴 Far":r==="miss"?"❌ Miss":"⏳ Pending";
 
       const filteredBets = bets.filter(b => {
+        if (b.result !== "pending") return false;
         if (feedFilter==="friends"&&currentUser) {
           const friends = currentUser.friends??[];
           if (!friends.includes(b.userId)&&b.userId!==currentUser.uid) return false;
