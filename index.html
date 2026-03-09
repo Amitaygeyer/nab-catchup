@@ -427,12 +427,36 @@
     const WEST_ABBRS = ["DAL","DEN","GSW","HOU","LAC","LAL","MEM","MIN","NOP","OKC","PHX","POR","SAC","SAS","UTA"];
 
     // ── BallDontLie API ──────────────────────────────────────────────────────────
-    async function apiFetch(path) {
-      try {
-        const r = await fetch(`${API_V1}${path}`, { headers: { Authorization: API_KEY } });
-        if (!r.ok) return { _err: r.status };
-        return await r.json(); // await so JSON parse errors are caught below
-      } catch { return { _err: "network" }; }
+    async function apiFetch(path, retries = 3) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 12000); // 12s timeout
+        try {
+          const r = await fetch(`${API_V1}${path}`, {
+            headers: { Authorization: API_KEY },
+            signal: controller.signal,
+          });
+          clearTimeout(tid);
+          if (r.status === 401 || r.status === 403) return { _err: r.status };
+          if (!r.ok) {
+            // Rate-limited or server error — wait then retry
+            if (attempt < retries) {
+              await new Promise(res => setTimeout(res, r.status === 429 ? 2000 : 1000 * (attempt + 1)));
+              continue;
+            }
+            return { _err: r.status };
+          }
+          return await r.json();
+        } catch(e) {
+          clearTimeout(tid);
+          if (attempt < retries) {
+            await new Promise(res => setTimeout(res, 800 * (attempt + 1)));
+            continue;
+          }
+          return { _err: "network" };
+        }
+      }
+      return { _err: "network" };
     }
 
     async function fetchAll(basePath) {
@@ -534,44 +558,72 @@
     }
 
     // ── Standings ────────────────────────────────────────────────────────────────
-    // Fetch full-season standings.
-    // Strategy: try /standings first (fast, 1 call). If empty/error, fall back to
-    // fetching every game this season and computing W-L from final scores.
+    // Fetch full-season standings. Cache until midnight so revisits are instant.
+    // Strategy: try fast /standings endpoint first (1 attempt, 5s timeout).
+    //           If unavailable, fall back to paginating all season games — reliable
+    //           but slower (~10 pages). Either way the result is cached for the day.
+    const STANDINGS_CACHE_KEY = "nba-standings-v4";
+
+    function standingsCacheValid(cached) {
+      if (!cached?.ts || !cached?.data || Object.keys(cached.data).length === 0) return false;
+      const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+      return new Date(cached.ts) >= midnight;
+    }
+
+    // One-shot fast fetch with a hard 5-second timeout, no retries
+    async function apiFetchFast(path) {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 5000);
+      try {
+        const r = await fetch(`${API_V1}${path}`, { headers: { Authorization: API_KEY }, signal: controller.signal });
+        clearTimeout(tid);
+        if (!r.ok) return { _err: r.status };
+        return await r.json();
+      } catch { clearTimeout(tid); return { _err: "network" }; }
+    }
+
     async function fetchStandings() {
-      // ── Attempt 1: /standings endpoint ──────────────────────────────────────
-      const res = await apiFetch(`/standings?season=${SEASON}`);
-      if (!res._err && res.data?.length) {
+      // ── Serve from today's cache ───────────────────────────────────────────
+      try {
+        const cached = JSON.parse(localStorage.getItem(STANDINGS_CACHE_KEY) ?? "null");
+        if (standingsCacheValid(cached)) return cached.data;
+      } catch {}
+
+      // ── Attempt 1: /standings endpoint (fast, single call) ────────────────
+      const res = await apiFetchFast(`/standings?season=${SEASON}`);
+      if (!res._err && res.data?.length >= 25) {
         const map = {};
         res.data.forEach(s => {
           const abbr = s.team?.abbreviation;
           if (!abbr) return;
           map[abbr] = { wins: s.wins ?? 0, losses: s.losses ?? 0 };
         });
-        if (Object.keys(map).length > 0) return map;
+        if (Object.keys(map).length >= 25) {
+          try { localStorage.setItem(STANDINGS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: map })); } catch {}
+          return map;
+        }
       }
 
-      // ── Attempt 2: compute from every game this season ───────────────────────
-      // fetchAll handles cursor-based pagination automatically (~10 pages for a full season)
+      // ── Attempt 2: paginate all season games (reliable fallback) ──────────
+      // fetchAll handles cursor pagination; ~10-12 pages for a full season.
       const gRes = await fetchAll(`/games?seasons[]=${SEASON}`);
-      if (gRes._err) return {};
-      const map = {};
-      (gRes.data ?? []).forEach(g => {
-        if (g.status !== "Final") return;
-        const hs = g.home_team_score ?? 0, vs = g.visitor_team_score ?? 0;
-        if (hs === 0 && vs === 0) return;           // no score recorded yet
-        const homeWon = hs > vs;
-        const homeAbbr = g.home_team?.abbreviation;
-        const visAbbr  = g.visitor_team?.abbreviation;
-        if (homeAbbr) {
-          if (!map[homeAbbr]) map[homeAbbr] = { wins: 0, losses: 0 };
-          homeWon ? map[homeAbbr].wins++ : map[homeAbbr].losses++;
+      if (!gRes._err && gRes.data?.length) {
+        const map = {};
+        gRes.data.forEach(g => {
+          if (g.status !== "Final") return;
+          const hs = g.home_team_score ?? 0, vs = g.visitor_team_score ?? 0;
+          if (!hs && !vs) return;
+          const homeWon = hs > vs;
+          const ha = g.home_team?.abbreviation, va = g.visitor_team?.abbreviation;
+          if (ha) { if (!map[ha]) map[ha] = { wins:0, losses:0 }; homeWon ? map[ha].wins++ : map[ha].losses++; }
+          if (va) { if (!map[va]) map[va] = { wins:0, losses:0 }; homeWon ? map[va].losses++ : map[va].wins++; }
+        });
+        if (Object.keys(map).length >= 25) {
+          try { localStorage.setItem(STANDINGS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: map })); } catch {}
+          return map;
         }
-        if (visAbbr) {
-          if (!map[visAbbr]) map[visAbbr] = { wins: 0, losses: 0 };
-          homeWon ? map[visAbbr].losses++ : map[visAbbr].wins++;
-        }
-      });
-      return map;
+      }
+      return {};
     }
 
     // Build a quick W-L map from only the games loaded in the local cache (7 days).
@@ -644,9 +696,9 @@
       if (s === dateStr(1))  return "Yesterday";
       return new Date(s + "T12:00:00").toLocaleDateString("en-US", { weekday:"short" });
     }
-    const DATES = Array.from({ length: 7 }, (_, i) => dateStr(i));
-    // Future dates: next 6 days (daysAgo = -1 = tomorrow, -2 = day after, etc.)
-    const FUTURE_DATES = Array.from({ length: 6 }, (_, i) => dateStr(-(i + 1)));
+    const DATES = Array.from({ length: 4 }, (_, i) => dateStr(i)); // today + 3 past gamedays
+    // Future dates: next 3 days
+    const FUTURE_DATES = Array.from({ length: 3 }, (_, i) => dateStr(-(i + 1)));
     // Extended range for Don't Miss page – 10 days balances streak accuracy vs API load
     const DONT_MISS_DATES = Array.from({ length: 10 }, (_, i) => dateStr(i));
     // Classic NBA rivalries (pairs of team abbreviations)
@@ -2072,7 +2124,14 @@
           const cred = await fbAuth.createUserWithEmailAndPassword(toEmail(username), password);
           const av = AVATARS.find(a => a.id === selAvatar) ?? AVATARS[0];
           const profile = { username: username.trim(), avatar: av.id, favTeams, favPlayers, friends: [], coins: 10, stars: 0, allTimeCoins: 10, purchasedAvatars: [], claimedPickCoins: {} };
-          await fbDb.collection("users").doc(cred.user.uid).set(profile);
+          // Timeout Firestore write — on mobile it can hang; auth still succeeded
+          const fsTimeout = new Promise(res => setTimeout(res, 8000));
+          try {
+            await Promise.race([
+              fbDb.collection("users").doc(cred.user.uid).set(profile),
+              fsTimeout,
+            ]);
+          } catch {}
           setCurrentUser({ uid: cred.user.uid, ...profile });
           onClose();
         } catch(e) {
@@ -2087,13 +2146,23 @@
         setLoading(true); setError("");
         try {
           const cred = await fbAuth.signInWithEmailAndPassword(toEmail(username), password);
-          const doc = await fbDb.collection("users").doc(cred.user.uid).get();
-          if (doc.exists) {
-            const data = doc.data();
-            setCurrentUser({ uid: cred.user.uid, friends: [], purchasedAvatars: [], allTimeCoins: 0, ...data });
-            if (data.favTeams)   setFavTeams(data.favTeams);
-            if (data.favPlayers) setFavPlayers(data.favPlayers);
-          } else {
+          // Wrap Firestore read in a timeout — on mobile it can hang indefinitely
+          const fsTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000));
+          try {
+            const doc = await Promise.race([
+              fbDb.collection("users").doc(cred.user.uid).get(),
+              fsTimeout,
+            ]);
+            if (doc.exists) {
+              const data = doc.data();
+              setCurrentUser({ uid: cred.user.uid, friends: [], purchasedAvatars: [], allTimeCoins: 0, ...data });
+              if (data.favTeams)   setFavTeams(data.favTeams);
+              if (data.favPlayers) setFavPlayers(data.favPlayers);
+            } else {
+              setCurrentUser({ uid: cred.user.uid, username: username.trim(), avatar: AVATARS[0].id, favTeams, favPlayers, friends: [] });
+            }
+          } catch {
+            // Timed out or Firestore error — auth succeeded, proceed with basic profile
             setCurrentUser({ uid: cred.user.uid, username: username.trim(), avatar: AVATARS[0].id, favTeams, favPlayers, friends: [] });
           }
           onClose();
@@ -3835,9 +3904,19 @@
                 boxShadow:"0 4px 24px rgba(0,0,0,0.35)" }}>
                 <div style={{ fontSize:44, marginBottom:12, color:"#f59e0b" }}><SI n="AlertTriangle" size={48} color="#f59e0b" /></div>
                 <p style={{ fontWeight:700, color:"white", marginBottom:6 }}>
-                  {error==="auth"?"API key not authorised":"Couldn't reach the API"}
+                  {error==="auth"?"API key not authorised":"Couldn't reach the API — check your connection"}
                 </p>
-                <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>Check your plan at app.balldontlie.io</p>
+                <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:16 }}>
+                  {error==="auth" ? "Check your plan at app.balldontlie.io" : "The request was retried automatically. Try again in a moment."}
+                </p>
+                {error !== "auth" && (
+                  <button onClick={() => { setError(null); setLoading(true); loadDate(selected).then(res => { if (res?.errCode) setError(res.errCode===401?"auth":"network"); setLoading(false); }); }}
+                    style={{ padding:"10px 24px", borderRadius:10, fontWeight:800, fontSize:13,
+                      background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white",
+                      border:"none", cursor:"pointer", boxShadow:"0 3px 12px rgba(245,158,11,0.4)" }}>
+                    ↻ Retry
+                  </button>
+                )}
               </div>
             ) : games.length === 0 ? (
               <div style={{ gridColumn:"1/-1",
@@ -4085,15 +4164,18 @@
     function TeamView({ team, gameCache, loadDate, onBack, spoilerMode, standings }) {
       const isMobile = useWindowWidth() < 600;
       const [loadingAll, setLoadingAll] = useState(true);
+      // Look back 14 days to reliably find the last 3+ games per team
+      const TEAM_PAST_DATES   = Array.from({ length: 14 }, (_, i) => dateStr(i));
+      const TEAM_FUTURE_DATES = FUTURE_DATES; // already 3 days
 
       useEffect(() => {
         let active = true;
-        // Load both past (DATES) and future (FUTURE_DATES) dates
-        Promise.all([...DATES, ...FUTURE_DATES].map(d => loadDate(d))).then(() => { if (active) setLoadingAll(false); });
+        Promise.all([...TEAM_PAST_DATES, ...TEAM_FUTURE_DATES].map(d => loadDate(d)))
+          .then(() => { if (active) setLoadingAll(false); });
         return () => { active = false; };
       }, [team.abbreviation]);
 
-      const teamGames = DATES
+      const teamGames = TEAM_PAST_DATES
         .flatMap(d => (gameCache[d] ?? [])
           .filter(g => g.home.abbreviation === team.abbreviation || g.visitor.abbreviation === team.abbreviation)
           .map(g => ({ ...g, date: d }))
@@ -8380,30 +8462,20 @@
         }, 800);
         return () => clearTimeout(t);
       }, [favTeams, favPlayers, currentUser]);
-      // Temporary placeholder: compute from the standard 7-day DATES window only.
-      // Explicitly scoped to DATES so that extra dates loaded by other views
-      // (e.g. DontMiss) never pollute the placeholder with non-season data.
-      // Once apiStandings is populated this effect becomes a no-op.
-      useEffect(() => {
-        if (Object.keys(apiStandings).length === 0) {
-          const slice = Object.fromEntries(
-            DATES.map(d => [d, gameCache[d]]).filter(([, v]) => v !== undefined)
-          );
-          setStandings(computeStandingsFromGames(slice));
-        }
-      }, [gameCache, apiStandings]);
+      // No placeholder — standings stay empty ({}) until the real API data arrives.
+      // GameCard records and StandingsPanel both handle empty standings gracefully.
 
-      // Fetch full-season standings. Retries up to 3 times with 3-second back-off
-      // in case the API is temporarily rate-limited at startup.
+      // Fetch full-season standings on mount. Retries up to 3× with 1.5s back-off.
+      // standings stays {} until real data arrives — nothing partial is shown.
       useEffect(() => {
         let cancelled = false, attempts = 0;
         const load = () => fetchStandings().then(fs => {
           if (cancelled) return;
-          if (Object.keys(fs).length > 0) {
+          if (Object.keys(fs).length >= 25) {
             setApiStandings(fs);
             setStandings(fs);
-          } else if (++attempts < 4) {
-            setTimeout(load, 3000); // wait 3 s then retry
+          } else if (++attempts < 3) {
+            setTimeout(load, 1500);
           }
         });
         load();
