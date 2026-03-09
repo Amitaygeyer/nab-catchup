@@ -700,55 +700,55 @@
 
     // ── Profile Banners (unlocked by rank, free) ─────────────────────────────────
     const PROFILE_FRAMES = [
-      { id:"beach_sunset",   name:"Beach Sunset",     rank:"Rookie",       emoji:"🌅",
+      { id:"beach_sunset",    name:"Beach Sunset",     rank:"Rookie",       emoji:"🌅",
         desc:"Warm golden hour on the shore",
-        bg:"linear-gradient(160deg,#ff6b35 0%,#f7931e 25%,#ffd700 45%,#87ceeb 65%,#1e90ff 100%)",
-        overlay:"radial-gradient(ellipse 80% 40% at 50% 45%,rgba(255,200,50,0.35) 0%,transparent 70%)",
+        bg:"url('./banner_beach_sunset.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(255,140,50,0.7)" },
-      { id:"tropical",       name:"Tropical Forest",  rank:"Prospect",     emoji:"🌴",
+      { id:"tropical",        name:"Tropical Forest",  rank:"Prospect",     emoji:"🌴",
         desc:"Lush green canopy in the tropics",
-        bg:"linear-gradient(160deg,#134e1a 0%,#1a6b2a 20%,#228b3a 42%,#3cb35a 60%,#1a5c2a 80%,#0d3318 100%)",
-        overlay:"radial-gradient(ellipse 90% 50% at 50% 30%,rgba(100,220,80,0.2) 0%,transparent 65%)",
+        bg:"url('./banner_tropical.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(60,180,80,0.7)" },
-      { id:"snowy_mountains", name:"Snowy Mountains", rank:"Starter",      emoji:"🏔️",
+      { id:"snowy_mountains", name:"Snowy Mountains",  rank:"Starter",      emoji:"🏔️",
         desc:"Crisp peaks under a winter sky",
-        bg:"linear-gradient(180deg,#b8d4f0 0%,#d6eaf8 30%,#e8f5fd 50%,#f0f8ff 60%,#c5dce8 75%,#4a8fa8 100%)",
-        overlay:"linear-gradient(180deg,transparent 50%,rgba(255,255,255,0.4) 65%,rgba(200,230,250,0.2) 100%)",
+        bg:"url('./banner_snowy_mountains.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(150,200,240,0.8)" },
-      { id:"deep_ocean",     name:"Deep Ocean",       rank:"Veteran",      emoji:"🌊",
+      { id:"deep_ocean",      name:"Deep Ocean",       rank:"Veteran",      emoji:"🌊",
         desc:"Mysterious depths of the sea",
-        bg:"linear-gradient(180deg,#0077b6 0%,#023e8a 25%,#03045e 55%,#00050f 100%)",
-        overlay:"radial-gradient(ellipse 120% 50% at 50% 20%,rgba(0,180,220,0.25) 0%,transparent 60%)",
+        bg:"url('./banner_deep_ocean.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(0,120,200,0.7)" },
-      { id:"galaxy",         name:"Galaxy",           rank:"All-Star",     emoji:"🌠",
+      { id:"galaxy",          name:"Galaxy",           rank:"All-Star",     emoji:"🌠",
         desc:"Lost among stars and nebulae",
-        bg:"radial-gradient(ellipse at 30% 30%,#6b21a8 0%,#1e1b4b 35%,#0f0c29 65%,#000000 100%)",
-        overlay:"radial-gradient(ellipse 60% 60% at 70% 60%,rgba(220,80,200,0.2) 0%,rgba(80,120,255,0.15) 50%,transparent 80%)",
+        bg:"url('./banner_galaxy.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(150,80,255,0.7)" },
-      { id:"aurora",         name:"Aurora Borealis",  rank:"All-NBA",      emoji:"🌌",
+      { id:"aurora",          name:"Aurora Borealis",  rank:"All-NBA",      emoji:"🌌",
         desc:"Dancing northern lights at midnight",
-        bg:"linear-gradient(135deg,#0a0a2e 0%,#0d2b4a 20%,#0a3d2e 38%,#1a6b4a 52%,#2e4a8a 65%,#4a1a6b 80%,#0a0a2e 100%)",
-        overlay:"radial-gradient(ellipse 100% 60% at 50% 40%,rgba(80,220,160,0.22) 0%,rgba(100,80,220,0.18) 50%,transparent 80%)",
+        bg:"url('./banner_aurora.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(80,220,160,0.6)" },
-      { id:"cherry_blossom", name:"Cherry Blossom",   rank:"MVP",          emoji:"🌸",
+      { id:"cherry_blossom",  name:"Cherry Blossom",   rank:"MVP",          emoji:"🌸",
         desc:"Soft petals drifting in spring breeze",
-        bg:"linear-gradient(140deg,#fce4ec 0%,#f8bbd0 22%,#f48fb1 45%,#f06292 65%,#e91e63 85%,#c2185b 100%)",
-        overlay:"radial-gradient(ellipse 70% 50% at 40% 35%,rgba(255,255,255,0.3) 0%,transparent 65%)",
+        bg:"url('./banner_cherry_blossom.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(240,100,160,0.8)" },
-      { id:"desert",         name:"Desert Dunes",     rank:"Champion",     emoji:"🏜️",
+      { id:"desert",          name:"Desert Dunes",     rank:"Champion",     emoji:"🏜️",
         desc:"Sweeping sands under a blazing sun",
-        bg:"linear-gradient(160deg,#e8722a 0%,#d4813a 20%,#c8a060 40%,#e8c080 58%,#b07840 78%,#8b4513 100%)",
-        overlay:"radial-gradient(ellipse 80% 35% at 60% 25%,rgba(255,230,120,0.35) 0%,transparent 65%)",
+        bg:"url('./banner_desert.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(220,140,50,0.7)" },
-      { id:"volcanic",       name:"Volcanic",         rank:"Hall of Fame", emoji:"🌋",
+      { id:"volcanic",        name:"Volcanic",         rank:"Hall of Fame", emoji:"🌋",
         desc:"Glowing lava flows and fiery skies",
-        bg:"radial-gradient(ellipse at 50% 100%,#ff3d00 0%,#b71c1c 28%,#4a0000 55%,#1a0000 75%,#0d0000 100%)",
-        overlay:"radial-gradient(ellipse 100% 40% at 50% 100%,rgba(255,80,0,0.4) 0%,rgba(200,20,0,0.2) 50%,transparent 80%)",
+        bg:"url('./banner_volcanic.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(255,80,20,0.7)" },
-      { id:"city_nights",    name:"City Nights",      rank:"Legend",       emoji:"🌃",
+      { id:"city_nights",     name:"City Nights",      rank:"Legend",       emoji:"🌃",
         desc:"Neon lights reflecting on city streets",
-        bg:"linear-gradient(180deg,#050510 0%,#0a0a20 25%,#0d1428 50%,#0a1e38 70%,#061020 100%)",
-        overlay:"radial-gradient(ellipse 80% 40% at 30% 70%,rgba(255,200,50,0.12) 0%,transparent 50%), radial-gradient(ellipse 60% 30% at 70% 60%,rgba(80,160,255,0.12) 0%,transparent 50%)",
+        bg:"url('./banner_city_nights.png') center / cover no-repeat",
+        overlay:"rgba(0,0,0,0)",
         border:"rgba(80,140,255,0.5)" },
     ];
     // Helper: get banner for a given rank label
@@ -2468,10 +2468,7 @@
             boxShadow: activeFrameObj ? `0 0 50px ${activeFrameObj.border}` : `0 0 50px ${myRankObj.glow}` }}>
             {/* Banner background layers */}
             <div style={{ position:"absolute", inset:0, zIndex:0,
-              background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.97)",
-              backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)" }}/>
-            {activeFrameObj && <div style={{ position:"absolute", inset:0, zIndex:0, background:activeFrameObj.overlay }}/>}
-            {activeFrameObj && <div style={{ position:"absolute", inset:0, zIndex:0, background:"rgba(0,0,0,0.40)" }}/>}
+              background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.97)" }}/>
             {/* Close button */}
             <button onClick={onClose} style={{ position:"absolute", top:12, right:12, zIndex:10,
               background:"rgba(0,0,0,0.55)", border:"1px solid rgba(255,255,255,0.15)",
@@ -2487,7 +2484,7 @@
                   <UserAvatar avatarId={data.avatar} size={90} showRank={true} allTimeCoins={atc} correct={correctPicks} />
                   <div style={{ textAlign:"center" }}>
                     <div style={{ fontSize:22, fontWeight:900, color:"white",
-                      textShadow:`0 0 20px ${myRankObj.glow}`, marginBottom:8 }}>
+                      textShadow:`0 2px 8px rgba(0,0,0,0.9), 0 0 20px ${myRankObj.glow}`, marginBottom:8 }}>
                       {data.username ?? "—"}
                     </div>
                     <RankBadge correct={correctPicks} size="lg" />
@@ -2502,11 +2499,13 @@
                     ].map(s => (
                       <div key={s.label} style={{ textAlign:"center", minWidth:72 }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5,
-                          fontSize:20, fontWeight:900, color: s.gold ? "#fde68a" : "white" }}>
+                          fontSize:20, fontWeight:900, color: s.gold ? "#fde68a" : "white",
+                          textShadow:"0 2px 6px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.9)" }}>
                           {s.gold ? <CoinIcon size={17}/> : <span>{s.icon}</span>}
                           <span>{s.val}</span>
                         </div>
-                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginTop:3 }}>{s.label}</div>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.9)", marginTop:3,
+                          textShadow:"0 1px 4px rgba(0,0,0,0.95)" }}>{s.label}</div>
                       </div>
                     ))}
                   </div>
@@ -6255,11 +6254,7 @@
                   boxShadow: activeFrameObj ? `0 0 40px ${activeFrameObj.border}` : `0 0 40px ${myRankObj.glow}` }}>
                   {/* Frame background layer */}
                   <div style={{ position:"absolute", inset:0, zIndex:0,
-                    background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.82)",
-                    backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)" }}/>
-                  {activeFrameObj && <div style={{ position:"absolute", inset:0, zIndex:0, background:activeFrameObj.overlay }}/>}
-                  {/* Darken overlay so text stays readable */}
-                  {activeFrameObj && <div style={{ position:"absolute", inset:0, zIndex:0, background:"rgba(0,0,0,0.38)" }}/>}
+                    background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.82)" }}/>
                   {/* Content above background */}
                   <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column",
                     alignItems:"center", gap:16, width:"100%" }}>
@@ -6267,7 +6262,7 @@
                       showRank={true} allTimeCoins={atc} correct={correctPicks} />
                     <div style={{ textAlign:"center" }}>
                       <div style={{ fontSize:isMobile?22:28, fontWeight:900, color:"white",
-                        textShadow:`0 0 20px ${myRankObj.glow}`, marginBottom:8 }}>
+                        textShadow:`0 2px 8px rgba(0,0,0,0.95), 0 0 20px ${myRankObj.glow}`, marginBottom:8 }}>
                         {currentUser.username}
                       </div>
                       <RankBadge correct={correctPicks} size="lg" />
@@ -6282,10 +6277,12 @@
                       ].map(s => (
                         <div key={s.label} style={{ textAlign:"center", minWidth:70 }}>
                           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5,
-                            fontSize:isMobile?22:26, fontWeight:900, color: s.gold ? "#fbbf24" : "white" }}>
+                            fontSize:isMobile?22:26, fontWeight:900, color: s.gold ? "#fbbf24" : "white",
+                            textShadow:"0 2px 6px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.9)" }}>
                             {s.icon ? s.icon : <CoinIcon size={isMobile?20:24}/>} {s.val}
                           </div>
-                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginTop:2, letterSpacing:"0.05em" }}>{s.label}</div>
+                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.9)", marginTop:2,
+                            letterSpacing:"0.05em", textShadow:"0 1px 4px rgba(0,0,0,0.95)" }}>{s.label}</div>
                         </div>
                       ))}
                     </div>
