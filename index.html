@@ -605,7 +605,6 @@
       }
 
       // ── Attempt 2: paginate all season games (reliable fallback) ──────────
-      // fetchAll handles cursor pagination; ~10-12 pages for a full season.
       const gRes = await fetchAll(`/games?seasons[]=${SEASON}`);
       if (!gRes._err && gRes.data?.length) {
         const map = {};
@@ -754,52 +753,52 @@
     const PROFILE_FRAMES = [
       { id:"beach_sunset",    name:"Beach Sunset",     rank:"Rookie",       emoji:"🌅",
         desc:"Warm golden hour on the shore",
-        bg:"url('./banner_beach_sunset.png') center / cover no-repeat",
+        bg:"url('./banner_beach_sunset.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(255,140,50,0.7)" },
       { id:"tropical",        name:"Tropical Forest",  rank:"Prospect",     emoji:"🌴",
         desc:"Lush green canopy in the tropics",
-        bg:"url('./banner_tropical.png') center / cover no-repeat",
+        bg:"url('./banner_tropical.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(60,180,80,0.7)" },
       { id:"snowy_mountains", name:"Snowy Mountains",  rank:"Starter",      emoji:"🏔️",
         desc:"Crisp peaks under a winter sky",
-        bg:"url('./banner_snowy_mountains.png') center / cover no-repeat",
+        bg:"url('./banner_snowy_mountains.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(150,200,240,0.8)" },
       { id:"deep_ocean",      name:"Deep Ocean",       rank:"Veteran",      emoji:"🌊",
         desc:"Mysterious depths of the sea",
-        bg:"url('./banner_deep_ocean.png') center / cover no-repeat",
+        bg:"url('./banner_deep_ocean.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(0,120,200,0.7)" },
       { id:"galaxy",          name:"Galaxy",           rank:"All-Star",     emoji:"🌠",
         desc:"Lost among stars and nebulae",
-        bg:"url('./banner_galaxy.png') center / cover no-repeat",
+        bg:"url('./banner_galaxy.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(150,80,255,0.7)" },
       { id:"aurora",          name:"Aurora Borealis",  rank:"All-NBA",      emoji:"🌌",
         desc:"Dancing northern lights at midnight",
-        bg:"url('./banner_aurora.png') center / cover no-repeat",
+        bg:"url('./banner_aurora.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(80,220,160,0.6)" },
       { id:"cherry_blossom",  name:"Cherry Blossom",   rank:"MVP",          emoji:"🌸",
         desc:"Soft petals drifting in spring breeze",
-        bg:"url('./banner_cherry_blossom.png') center / cover no-repeat",
+        bg:"url('./banner_cherry_blossom.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(240,100,160,0.8)" },
       { id:"desert",          name:"Desert Dunes",     rank:"Champion",     emoji:"🏜️",
         desc:"Sweeping sands under a blazing sun",
-        bg:"url('./banner_desert.png') center / cover no-repeat",
+        bg:"url('./banner_desert.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(220,140,50,0.7)" },
       { id:"volcanic",        name:"Volcanic",         rank:"Hall of Fame", emoji:"🌋",
         desc:"Glowing lava flows and fiery skies",
-        bg:"url('./banner_volcanic.png') center / cover no-repeat",
+        bg:"url('./banner_volcanic.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(255,80,20,0.7)" },
       { id:"city_nights",     name:"City Nights",      rank:"Legend",       emoji:"🌃",
         desc:"Neon lights reflecting on city streets",
-        bg:"url('./banner_city_nights.png') center / cover no-repeat",
+        bg:"url('./banner_city_nights.png')",
         overlay:"rgba(0,0,0,0)",
         border:"rgba(80,140,255,0.5)" },
     ];
@@ -2536,8 +2535,11 @@
             border:`1.5px solid ${activeFrameObj ? activeFrameObj.border : myRankObj.color+"55"}`,
             boxShadow: activeFrameObj ? `0 0 50px ${activeFrameObj.border}` : `0 0 50px ${myRankObj.glow}` }}>
             {/* Banner background layers */}
-            <div style={{ position:"absolute", inset:0, zIndex:0,
-              background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.97)" }}/>
+            <div style={activeFrameObj ? {
+              position:"absolute", inset:0, zIndex:0,
+              backgroundImage: activeFrameObj.bg,
+              backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat"
+            } : { position:"absolute", inset:0, zIndex:0, background:"rgba(8,12,28,0.97)" }} />
             {/* Close button */}
             <button onClick={onClose} style={{ position:"absolute", top:12, right:12, zIndex:10,
               background:"rgba(0,0,0,0.55)", border:"1px solid rgba(255,255,255,0.15)",
@@ -6335,8 +6337,11 @@
                   padding:isMobile?"20px 16px":"28px 24px",
                   boxShadow: activeFrameObj ? `0 0 40px ${activeFrameObj.border}` : `0 0 40px ${myRankObj.glow}` }}>
                   {/* Frame background layer */}
-                  <div style={{ position:"absolute", inset:0, zIndex:0,
-                    background: activeFrameObj ? activeFrameObj.bg : "rgba(8,12,28,0.82)" }}/>
+                  <div style={activeFrameObj ? {
+                    position:"absolute", inset:0, zIndex:0,
+                    backgroundImage: activeFrameObj.bg,
+                    backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat"
+                  } : { position:"absolute", inset:0, zIndex:0, background:"rgba(8,12,28,0.82)" }} />
                   {/* Content above background */}
                   <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column",
                     alignItems:"center", gap:16, width:"100%" }}>
@@ -7246,9 +7251,14 @@
                     boxShadow: active ? `0 0 18px ${f.border}` : "none",
                     background:"rgba(8,12,28,0.9)", display:"flex", flexDirection:"column" }}>
                     {/* Preview */}
-                    <div style={{ height:70, position:"relative", overflow:"hidden",
-                      background: unlocked ? f.bg : "rgba(8,12,28,0.5)",
-                      filter: unlocked ? "none" : "grayscale(1) opacity(0.4)" }}>
+                    <div style={unlocked ? {
+                      height:70, position:"relative", overflow:"hidden",
+                      backgroundImage: f.bg, backgroundSize:"cover",
+                      backgroundPosition:"center", backgroundRepeat:"no-repeat"
+                    } : {
+                      height:70, position:"relative", overflow:"hidden",
+                      background:"rgba(8,12,28,0.5)", filter:"grayscale(1) opacity(0.4)"
+                    }}>
                       <div style={{ position:"absolute", inset:0, background: unlocked ? f.overlay : "none" }}/>
                       <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column",
                         alignItems:"center", justifyContent:"center", gap:2 }}>
