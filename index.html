@@ -620,9 +620,9 @@
     }
 
     // ── Config ───────────────────────────────────────────────────────────────────
-    // All Ball Don't Lie requests go through our Firebase Cloud Function proxy.
-    // The real API key lives in Firebase environment config — never in client code.
-    const API_V1  = "https://us-central1-nab-catchup.cloudfunctions.net/bdlProxy";
+    // Ball Don't Lie API — direct calls with API key
+    const API_V1  = "https://api.balldontlie.io/v1";
+    const API_KEY = "60bc54f3-f8d0-4f96-b7c0-bd6cb513e7ef";
     const SEASON  = 2025; // 2025-26 season
     // ESPN CDN uses non-standard slugs for some teams
     const ESPN_ABBR = { NOP:"no", UTA:"utah" };
@@ -738,6 +738,7 @@
         try {
           const r = await fetch(`${API_V1}${path}`, {
             signal: controller.signal,
+            headers: { "Authorization": API_KEY },
           });
           clearTimeout(tid);
           if (r.status === 401 || r.status === 403) return { _err: r.status };
@@ -878,7 +879,7 @@
       const controller = new AbortController();
       const tid = setTimeout(() => controller.abort(), 5000);
       try {
-        const r = await fetch(`${API_V1}${path}`, { signal: controller.signal });
+        const r = await fetch(`${API_V1}${path}`, { signal: controller.signal, headers: { "Authorization": API_KEY } });
         clearTimeout(tid);
         if (!r.ok) return { _err: r.status };
         return await r.json();
