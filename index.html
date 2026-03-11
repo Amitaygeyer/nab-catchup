@@ -1505,8 +1505,8 @@
       const allPlayers = [...(game.home.players??[]), ...(game.visitor.players??[])];
       const hasStats   = allPlayers.some(p => p.pts != null);
 
-      const awayTop4 = byPts(game.visitor.players ?? []).slice(0, 4);
-      const homeTop4 = byPts(game.home.players ?? []).slice(0, 4);
+      const awayTop4 = byPts(game.visitor.players ?? []).slice(0, isMobile ? 3 : 4);
+      const homeTop4 = byPts(game.home.players ?? []).slice(0, isMobile ? 3 : 4);
 
       // Per-team colors
       const visitorColor    = TEAM_COLORS[game.visitor.abbreviation] || "#a5b4fc";
@@ -1620,24 +1620,24 @@
                           </div>
                         </div>
                         {/* PTS / REB / AST row — bold white with shadow outline */}
-                        <div style={{ display:"flex", gap:isMobile?3:4, alignItems:"flex-end", marginTop:2 }}>
+                        <div style={{ display:"flex", gap:isMobile?5:4, alignItems:"flex-end", marginTop:2 }}>
                           <div style={{ textAlign:"center" }}>
-                            <div style={{ fontSize:isMobile?12:14, fontWeight:900, color:"white", lineHeight:1,
+                            <div style={{ fontSize:isMobile?16:14, fontWeight:900, color:"white", lineHeight:1,
                               textShadow:"0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6), -1px -1px 0 rgba(0,0,0,0.5), 1px 1px 0 rgba(0,0,0,0.5)" }}>{star.pts}</div>
-                            <div style={{ fontSize:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>PTS</div>
+                            <div style={{ fontSize:isMobile?7:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>PTS</div>
                           </div>
                           {star.reb ? (
                             <div style={{ textAlign:"center" }}>
-                              <div style={{ fontSize:isMobile?10:12, fontWeight:900, color:"white", lineHeight:1,
+                              <div style={{ fontSize:isMobile?13:12, fontWeight:900, color:"white", lineHeight:1,
                                 textShadow:"0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6), -1px -1px 0 rgba(0,0,0,0.5), 1px 1px 0 rgba(0,0,0,0.5)" }}>{star.reb}</div>
-                              <div style={{ fontSize:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>REB</div>
+                              <div style={{ fontSize:isMobile?7:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>REB</div>
                             </div>
                           ) : null}
                           {star.ast ? (
                             <div style={{ textAlign:"center" }}>
-                              <div style={{ fontSize:isMobile?10:12, fontWeight:900, color:"white", lineHeight:1,
+                              <div style={{ fontSize:isMobile?13:12, fontWeight:900, color:"white", lineHeight:1,
                                 textShadow:"0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6), -1px -1px 0 rgba(0,0,0,0.5), 1px 1px 0 rgba(0,0,0,0.5)" }}>{star.ast}</div>
-                              <div style={{ fontSize:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>AST</div>
+                              <div style={{ fontSize:isMobile?7:6, color:"rgba(255,255,255,0.5)", fontWeight:700, letterSpacing:"0.06em" }}>AST</div>
                             </div>
                           ) : null}
                         </div>
@@ -1651,11 +1651,11 @@
                 {/* Player name below diamond */}
                 {isFinal && !spoilerMode && star?.player && (
                   <div style={{ textAlign:"center", maxWidth:dmnd+24, marginTop:1 }}>
-                    <div style={{ fontSize:isMobile?10:12, fontWeight:900,
+                    <div style={{ fontSize:isMobile?12:12, fontWeight:900,
                       color: spoilerMode ? "rgba(255,255,255,0.3)" : mvpColor,
                       letterSpacing:"0.14em", textTransform:"uppercase",
                       textShadow: spoilerMode ? "none" : `0 0 12px ${mvpColor}88` }}>⭐ MVP</div>
-                    <div style={{ fontSize:isMobile?11:13, fontWeight:800, color:"white",
+                    <div style={{ fontSize:isMobile?13:13, fontWeight:800, color:"white",
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
                       letterSpacing:"0.02em", marginTop:1 }}>
                       {star.player.first_name?.[0]}. {star.player.last_name}
@@ -1696,7 +1696,7 @@
               </div>
             </div>
 
-            {/* ── TOP-4 SCORER TABLE — side by side ── */}
+            {/* ── TOP SCORER TABLE — side by side ── */}
             {!isUpcoming && !spoilerMode && hasStats && (
               <div style={{ position:"relative", zIndex:1,
                 borderTop:`1px solid ${cardAccentColor}30`,
@@ -1715,41 +1715,50 @@
                   }}>
                     {/* Column header */}
                     <div style={{ display:"flex", alignItems:"center",
-                      padding:isMobile?"4px 6px":"5px 10px",
+                      padding:isMobile?"5px 8px":"5px 10px",
                       borderBottom:"1px solid rgba(255,255,255,0.07)",
                       background:"rgba(0,0,0,0.18)" }}>
-                      <span style={{ fontSize:isMobile?8:9, fontWeight:800,
+                      <span style={{ fontSize:isMobile?10:9, fontWeight:800,
                         color:color, letterSpacing:"0.1em", textTransform:"uppercase",
                         flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {abbr}
                       </span>
-                      <div style={{ display:"flex", gap:isMobile?6:9, flexShrink:0 }}>
-                        {["PTS","REB","AST"].map(h => (
-                          <span key={h} style={{ width:isMobile?18:22, textAlign:"center", fontSize:isMobile?7:8,
-                            fontWeight:700, color:"rgba(255,255,255,0.35)", letterSpacing:"0.08em" }}>{h}</span>
-                        ))}
-                      </div>
+                      {isMobile ? (
+                        <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.35)", letterSpacing:"0.08em" }}>PTS</span>
+                      ) : (
+                        <div style={{ display:"flex", gap:9, flexShrink:0 }}>
+                          {["PTS","REB","AST"].map(h => (
+                            <span key={h} style={{ width:22, textAlign:"center", fontSize:8,
+                              fontWeight:700, color:"rgba(255,255,255,0.35)", letterSpacing:"0.08em" }}>{h}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {/* Player rows */}
                     {rows.filter(p => p.pts != null).map((p, i) => (
                       <div key={i} style={{ display:"flex", alignItems:"center",
-                        padding:isMobile?"3px 6px":"4px 10px",
-                        borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                        opacity: i===0?1 : i===1?0.82 : i===2?0.65 : 0.45 }}>
-                        <span style={{ flex:1, fontSize:isMobile?8:9, fontWeight: i===0?800:600,
+                        padding:isMobile?"5px 8px":"4px 10px",
+                        borderBottom: i < rows.length-1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        opacity: i===0?1 : i===1?0.82 : 0.65 }}>
+                        <span style={{ flex:1, fontSize:isMobile?12:9, fontWeight: i===0?800:600,
                           color: i===0?"white":"rgba(255,255,255,0.75)",
                           overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
                           minWidth:0 }}>
                           {p.player?.first_name?.[0]}.{p.player?.last_name ?? ""}
                         </span>
-                        <div style={{ display:"flex", gap:isMobile?6:9, flexShrink:0 }}>
-                          <span style={{ width:isMobile?18:22, textAlign:"center", fontSize:isMobile?10:11,
-                            fontWeight:900, color:"white" }}>{p.pts ?? "—"}</span>
-                          <span style={{ width:isMobile?18:22, textAlign:"center", fontSize:isMobile?10:11,
-                            fontWeight:900, color:"white" }}>{p.reb ?? "—"}</span>
-                          <span style={{ width:isMobile?18:22, textAlign:"center", fontSize:isMobile?10:11,
-                            fontWeight:900, color:"white" }}>{p.ast ?? "—"}</span>
-                        </div>
+                        {isMobile ? (
+                          <span style={{ fontSize:16, fontWeight:900, color:"white", flexShrink:0,
+                            minWidth:28, textAlign:"right" }}>{p.pts ?? "—"}</span>
+                        ) : (
+                          <div style={{ display:"flex", gap:9, flexShrink:0 }}>
+                            <span style={{ width:22, textAlign:"center", fontSize:11,
+                              fontWeight:900, color:"white" }}>{p.pts ?? "—"}</span>
+                            <span style={{ width:22, textAlign:"center", fontSize:11,
+                              fontWeight:900, color:"white" }}>{p.reb ?? "—"}</span>
+                            <span style={{ width:22, textAlign:"center", fontSize:11,
+                              fontWeight:900, color:"white" }}>{p.ast ?? "—"}</span>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -3207,20 +3216,20 @@
         </div>
       );
 
-      // All-around section (gold)
+      // All-around section (gold) — on mobile this is the ONLY section shown, so sizes are bumped up
       const AllAroundSection = () => (
-        <div style={{ flex:1, minWidth:isMobile?"calc(50% - 4px)":0,
+        <div style={{ flex:1, minWidth:isMobile?"100%":0,
           background:"rgba(8,12,28,0.65)", backdropFilter:"blur(14px)",
-          borderRadius:12, border:"1px solid rgba(251,191,36,0.18)",
+          borderRadius:isMobile?14:12, border:"1px solid rgba(251,191,36,0.18)",
           borderTop:`2px solid ${GOLD_C}`,
-          padding:isMobile?"8px 8px":"10px 11px",
+          padding:isMobile?"12px 14px":"10px 11px",
           boxShadow:"0 3px 16px rgba(0,0,0,0.28)" }}>
           {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:isMobile?8:9 }}>
-            <SI n="Star" size={isMobile?12:13} color={GOLD_C}/>
-            <span style={{ fontSize:isMobile?8:9, fontWeight:900, color:GOLD_C,
+          <div style={{ display:"flex", alignItems:"center", gap:isMobile?6:4, marginBottom:isMobile?12:9 }}>
+            <SI n="Star" size={isMobile?16:13} color={GOLD_C}/>
+            <span style={{ fontSize:isMobile?12:9, fontWeight:900, color:GOLD_C,
               letterSpacing:"0.1em", textTransform:"uppercase" }}>All-Around</span>
-            <span style={{ fontSize:7, color:"rgba(251,191,36,0.4)", fontWeight:700, marginLeft:2 }}>
+            <span style={{ fontSize:isMobile?9:7, color:"rgba(251,191,36,0.4)", fontWeight:700, marginLeft:2 }}>
               PTS · AST · REB
             </span>
           </div>
@@ -3230,42 +3239,44 @@
             const shortName = `${p.player.first_name?.[0]}. ${p.player.last_name}`;
             return (
               <div key={p.player?.id ?? i} style={{ display:"flex", alignItems:"center",
-                gap:isMobile?4:5,
-                padding:isFirst?(isMobile?"5px 4px":"6px 5px"):(isMobile?"3px 0":"4px 0"),
+                gap:isMobile?8:5,
+                padding:isFirst?(isMobile?"8px 8px":"6px 5px"):(isMobile?"6px 4px":"4px 0"),
                 borderBottom:i < allRounders.length-1 ? "1px solid rgba(251,191,36,0.1)" : "none",
                 background:isFirst ? "rgba(251,191,36,0.07)" : "transparent",
-                borderRadius:isFirst ? 6 : 0,
+                borderRadius:isFirst ? 8 : 0,
                 marginLeft:isFirst ? -4 : 0, marginRight:isFirst ? -4 : 0 }}>
                 <RankBadge rank={i}/>
                 {isFirst
-                  ? <PAvatar player={p.player} teamAbbr={p.teamAbbr} sz={isMobile?28:34}/>
-                  : <div style={{ width:isMobile?28:34, flexShrink:0 }}/>}
+                  ? <PAvatar player={p.player} teamAbbr={p.teamAbbr} sz={isMobile?38:34}/>
+                  : isMobile
+                    ? <PAvatar player={p.player} teamAbbr={p.teamAbbr} sz={30}/>
+                    : <div style={{ width:34, flexShrink:0 }}/>}
                 <span style={{ flex:1,
-                  fontSize:isFirst ? (isMobile?10:11) : (isMobile?9:10),
+                  fontSize:isFirst ? (isMobile?14:11) : (isMobile?13:10),
                   fontWeight:800, color:"white",
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {isFirst ? (isMobile ? shortName : fullName) : shortName}
+                  {isFirst ? fullName : (isMobile ? fullName : shortName)}
                 </span>
-                <div style={{ display:"flex", gap:isMobile?3:5, alignItems:"baseline", flexShrink:0 }}>
+                <div style={{ display:"flex", gap:isMobile?6:5, alignItems:"baseline", flexShrink:0 }}>
                   <div>
                     <span style={{ fontWeight:900, color:"white",
-                      fontSize:isFirst?(isMobile?12:14):(isMobile?9:11),
+                      fontSize:isFirst?(isMobile?18:14):(isMobile?15:11),
                       textShadow:isFirst?"0 0 10px rgba(251,191,36,0.7)":"none" }}>{p.pts ?? 0}</span>
-                    <span style={{ fontSize:7, color:"rgba(251,191,36,0.5)", fontWeight:600, marginLeft:1 }}>p</span>
+                    <span style={{ fontSize:isMobile?9:7, color:"rgba(251,191,36,0.5)", fontWeight:600, marginLeft:1 }}>p</span>
                   </div>
-                  <span style={{ fontSize:7, color:"rgba(255,255,255,0.18)" }}>·</span>
+                  <span style={{ fontSize:isMobile?9:7, color:"rgba(255,255,255,0.18)" }}>·</span>
                   <div>
                     <span style={{ fontWeight:900, color:"white",
-                      fontSize:isFirst?(isMobile?12:14):(isMobile?9:11),
+                      fontSize:isFirst?(isMobile?18:14):(isMobile?15:11),
                       textShadow:isFirst?"0 0 10px rgba(96,165,250,0.7)":"none" }}>{p.ast ?? 0}</span>
-                    <span style={{ fontSize:7, color:"rgba(96,165,250,0.5)", fontWeight:600, marginLeft:1 }}>a</span>
+                    <span style={{ fontSize:isMobile?9:7, color:"rgba(96,165,250,0.5)", fontWeight:600, marginLeft:1 }}>a</span>
                   </div>
-                  <span style={{ fontSize:7, color:"rgba(255,255,255,0.18)" }}>·</span>
+                  <span style={{ fontSize:isMobile?9:7, color:"rgba(255,255,255,0.18)" }}>·</span>
                   <div>
                     <span style={{ fontWeight:900, color:"white",
-                      fontSize:isFirst?(isMobile?12:14):(isMobile?9:11),
+                      fontSize:isFirst?(isMobile?18:14):(isMobile?15:11),
                       textShadow:isFirst?"0 0 10px rgba(196,181,253,0.7)":"none" }}>{p.reb ?? 0}</span>
-                    <span style={{ fontSize:7, color:"rgba(196,181,253,0.5)", fontWeight:600, marginLeft:1 }}>r</span>
+                    <span style={{ fontSize:isMobile?9:7, color:"rgba(196,181,253,0.5)", fontWeight:600, marginLeft:1 }}>r</span>
                   </div>
                 </div>
               </div>
@@ -3285,12 +3296,12 @@
               textShadow:"0 0 24px rgba(245,158,11,0.5)" }}>Top Performers</span>
             <span style={{ fontSize:isMobile?14:18 }}>⭐</span>
           </div>
-          {/* Silver · Gold · Gold · Silver · Gold */}
+          {/* Mobile: only All-Around | Desktop: all four columns */}
           <div style={{ display:"flex", gap:isMobile?6:10,
             flexWrap:isMobile?"wrap":"nowrap", alignItems:"stretch" }}>
-            {scorers.length    > 0 && <Section title="Points"   color={SILVER_C} iconName="Activity"  players={scorers}    statKey="pts"/>}
-            {assisters.length  > 0 && <Section title="Assists"  color={GOLD_C}   iconName="Handshake" players={assisters}  statKey="ast"/>}
-            {rebounders.length > 0 && <Section title="Rebounds" color={SILVER_C} iconName="Zap"       players={rebounders} statKey="reb"/>}
+            {!isMobile && scorers.length    > 0 && <Section title="Points"   color={SILVER_C} iconName="Activity"  players={scorers}    statKey="pts"/>}
+            {!isMobile && assisters.length  > 0 && <Section title="Assists"  color={GOLD_C}   iconName="Handshake" players={assisters}  statKey="ast"/>}
+            {!isMobile && rebounders.length > 0 && <Section title="Rebounds" color={SILVER_C} iconName="Zap"       players={rebounders} statKey="reb"/>}
 
             {allRounders.length > 0 && <AllAroundSection/>}
           </div>
