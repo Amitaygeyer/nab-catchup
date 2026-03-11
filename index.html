@@ -9340,7 +9340,7 @@
       const [err, setErr] = useState(false);
       // Reset error state when the player changes
       useEffect(function(){ setErr(false); }, [playerId]);
-      const W        = isMobile ? 62 : 124;
+      const W        = isMobile ? 95 : 124;
       const H        = Math.round(W * 0.6);
       const initials = playerName.split(" ").map(function(w){ return w[0]; }).join("").slice(0,2);
       return (
@@ -9374,9 +9374,10 @@
                    ? "hlSlideIn 0.38s cubic-bezier(0.2,0.8,0.3,1) both" : "none";
       return (
         <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column",
-          alignItems:"center", gap: isMobile?2:5,
+          alignItems:"center", justifyContent:"space-evenly",
+          gap: isMobile?4:5,
           background:bg, border, borderRadius:13,
-          padding: isMobile?"6px 5px":"11px 10px",
+          padding: isMobile?"12px 8px":"11px 10px",
           boxShadow: revealColor==="correct"
             ? "0 0 20px rgba(34,197,94,0.22),0 3px 12px rgba(0,0,0,0.5)"
             : revealColor==="wrong"
@@ -9386,23 +9387,23 @@
           animation: anim }}>
           <HLShot playerId={player.id} playerName={player.name} isMobile={isMobile}/>
           <div style={{ textAlign:"center", width:"100%", overflow:"hidden" }}>
-            <div style={{ fontSize:isMobile?10:14, fontWeight:900, color:"white",
+            <div style={{ fontSize:isMobile?13:14, fontWeight:900, color:"white",
               lineHeight:1.2, marginBottom:1,
               overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
               {player.name}
             </div>
-            <div style={{ fontSize:isMobile?10:13, fontWeight:700,
-              color:"rgba(255,255,255,0.5)", letterSpacing:"0.04em", marginBottom:1 }}>
+            <div style={{ fontSize:isMobile?11:13, fontWeight:700,
+              color:"rgba(255,255,255,0.5)", letterSpacing:"0.04em", marginBottom:2 }}>
               {player.team}
             </div>
-            <div style={{ fontSize:isMobile?13:18, fontWeight:900,
-              color:"rgba(255,255,255,0.85)", letterSpacing:"0.02em",
-              textShadow:"0 0 10px rgba(255,255,255,0.15)" }}>
+            <div style={{ fontSize:isMobile?17:18, fontWeight:900,
+              color:"#fbbf24", letterSpacing:"0.03em",
+              textShadow:"0 0 12px rgba(251,191,36,0.5)" }}>
               {player.season}
             </div>
           </div>
           {showPPG ? (
-            <div style={{ fontSize:isMobile?17:28, fontWeight:900, lineHeight:1,
+            <div style={{ fontSize:isMobile?24:28, fontWeight:900, lineHeight:1,
               color: revealColor==="correct" ? "#4ade80"
                    : revealColor==="wrong"   ? "#f87171" : "#fbbf24",
               textShadow: revealColor==="correct" ? "0 0 12px rgba(74,222,128,0.7)"
@@ -9414,7 +9415,7 @@
                 fontWeight:700, marginLeft:2 }}>PPG</span>
             </div>
           ) : (
-            <div style={{ fontSize:isMobile?19:32, fontWeight:900,
+            <div style={{ fontSize:isMobile?26:32, fontWeight:900,
               color:"rgba(255,255,255,0.18)", lineHeight:1 }}>???</div>
           )}
         </div>
@@ -9639,8 +9640,9 @@
 
           {/* ── Centred game card ── */}
           <div style={{ width:"100%", maxWidth: isMobile?480:720,
+            flexGrow: isMobile?1:0,
             background:"rgba(8,14,35,0.88)",
-            borderRadius:20, border:"1px solid rgba(255,255,255,0.09)",
+            borderRadius: isMobile?16:20, border:"1px solid rgba(255,255,255,0.09)",
             boxShadow:"0 14px 55px rgba(0,0,0,0.7)",
             overflow:"hidden", display:"flex", flexDirection:"column" }}>
 
@@ -9718,10 +9720,11 @@
               )}
             </div>
 
-            {/* Cards — side by side, natural height (no stretch) */}
+            {/* Cards — side by side, grow to fill available space on mobile */}
             <div style={{ display:"flex", flexDirection:"row",
-              gap: isMobile?5:10, padding: isMobile?"0 8px 6px":"0 16px 12px",
-              alignItems:"center", justifyContent:"center" }}>
+              flex: isMobile?1:"none",
+              gap: isMobile?8:10, padding: isMobile?"0 8px 8px":"0 16px 12px",
+              alignItems:"stretch", justifyContent:"center" }}>
               {left && (
                 <div style={{ flex:1, minWidth:0 }}>
                   <HLCard player={left} showPPG={true} isRight={false}
@@ -9754,10 +9757,10 @@
                 const disabled = phase !== "playing";
                 return (
                   <button key={g} onClick={function(){ handleGuess(g); }} disabled={disabled}
-                    style={{ flex:1, padding: isMobile?"10px 0":"14px 0",
+                    style={{ flex:1, padding: isMobile?"16px 0":"14px 0",
                       borderRadius:12, border:"none",
                       cursor: disabled ? "default" : "pointer",
-                      fontSize: isMobile?14:18, fontWeight:900, letterSpacing:"0.04em",
+                      fontSize: isMobile?17:18, fontWeight:900, letterSpacing:"0.04em",
                       transition:"transform 0.12s,box-shadow 0.12s,opacity 0.2s",
                       opacity: disabled ? 0.38 : 1,
                       background: isH
